@@ -445,12 +445,19 @@ public:
 	}
 
 	void reg_pushall(){
+		cb.emit("#Push all regs : begining.");
+		cb.emit("#**************************");	
+		cb.emit("");
 		for (int i = 0; i < reg_pool.size(); ++i){
 			std::stringstream label;
 			label << "$";
 			label << (i + 8);
 			reg_push(label.str());
 		}
+		cb.emit("");
+		cb.emit("#Push all regs : end.");
+		cb.emit("#**************************");	
+
 	}
 
 	void reg_pop(string reg){
@@ -459,22 +466,32 @@ public:
 	}
 
 	void reg_popall(){
+		cb.emit("#Pop all regs : begining.");
+		cb.emit("#**************************");	
+		cb.emit("");
 		for (int i = reg_pool.size() - 1; i >= 0; --i){
 			std::stringstream label;
 			label << "$";
 			label << (i + 8);
 			reg_pop(label.str());
 		}
+				cb.emit("");
+		cb.emit("#Pop all regs : end.");
+		cb.emit("#**************************");	
 	}
+
+	/**
+	 * save all regs, fp reg, ra reg - before calling to a function, we will then use call_set_args().
+	 *  this fucntion is called inside mark_push.
+	 */
 	void function_call(){
+		cb.emit("# Function Call #");
 		reg_pushall();
 		reg_push("$fp");
 		reg_push("$ra");
 
 	}
-	void function_return(){
 
-	}
 	void bpatch_one(int i, string s){
 		vector<int> v = vector<int>();
 		v.push_back(i);
@@ -563,6 +580,7 @@ FuncDecl     : FuncDecl1 LBRACE Statements RBRACE{
 			     }			
                 st.pop_table();
 			 	st.func_return = -1;
+			 	
                }
                ;
 
@@ -579,10 +597,11 @@ FuncDecl1		: RetType ID LPAREN Formals RPAREN {
                     }
                     st.add_symbol_func(new_info);
                     st.push_table();
-                    st.add_func_symbol_to_table($4.formal_list);			   				
+                    st.add_func_symbol_to_table($4.formal_list);	
+                    $$.name = $2.name;	
+                    st.cb.emit("__"+ $2.name +":");	   				
 				}
 			;
-
 
 RetType 		: Type {
 					int t = -1;
@@ -858,14 +877,13 @@ MARK_BRK		:/*epsilon*/{
 								 $$.next_list = st.cb.makelist(st.cb.emit("j "));
 						}
 
-Call 			: ID LPAREN Mark1 ExpList RPAREN {
+Call 			: ID LPAREN Mark_push ExpList RPAREN {
 						//first we check that the function is defined
 								info func_info("dummy", -1, -1);
 								if (st.find_func($1.name,func_info) < 0){
 									errorUndefFunc(yylineno, $1.name.c_str()); 
 									exit(1);
 								}
-
 								vector<const char*> proto_names = vector<const char*>();
 								for (vector<int>::iterator it1 = (func_info.params).begin();it1 != func_info.params.end();++it1){
 									int_to_name_push(*it1, proto_names);
@@ -875,6 +893,14 @@ Call 			: ID LPAREN Mark1 ExpList RPAREN {
 									exit(1);
 								}
 								$$.type = st.convert_type_func_to_var( func_info.type);
+								/*
+								Mark_Push saved regs, fp, ra.
+								ExpList pushed args.
+								now we just set fp to poin to new sp.
+								 */
+								st.cb.emit("# Set fp above sp -- now in new function frame #");
+								st.cb.emit("addu $fp, $sp, 4");
+								st.cb.emit("jal	   __" + $1.name);
 							}
 			| ID LPAREN RPAREN {
 						//first we check that the function is defined
@@ -892,7 +918,7 @@ Call 			: ID LPAREN Mark1 ExpList RPAREN {
 								$$.type = st.convert_type_func_to_var( func_info.type);
 			}
 			;
-Mark1		: /*epsilon*/ {
+Mark_push		: /*epsilon*/ {
 								st.function_call();
 						  }
 
