@@ -607,20 +607,25 @@ FormatDecl  : Type ID {$$.type = $1.type; $$.name = $2.name;}
 			;
 
 Statements		: Statement {
+								$$.next_list = $1.next_list;
 								$$.have_sure_exit = $1.have_sure_exit;
 								st.manage_insert( $1 , false);
+
 							}
-			| Statements Statement  {
+				| Statements Statement  { 
+											$$.next_list = st.cb.merge($1.next_list, $2.next_list);
 											$$.have_sure_exit = ($1.have_sure_exit || $2.have_sure_exit) ? true : false; // doing or between of them
 											st.manage_insert( $2 , false);
+
 									}
 			;
 
 Statement	 	: LBRACE PushMark Statements RBRACE {
-								  $$.have_sure_exit = $3.have_sure_exit;
-								  $$.insert = false;
-								  st.pop_params();
-								  st.pop_table();
+								  						  $$.next_list = $3.next_list;
+														  $$.have_sure_exit = $3.have_sure_exit;
+														  $$.insert = false;
+														  st.pop_params();
+														  st.pop_table();
 							    }
 				| Type ID SC {
 								if (st.has_func($2.name) >= 0|| st.has_var($2.name) >= 0) {
@@ -658,13 +663,18 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 						st.cb.emit("# inserting var = " + $$.name);
 						st.reg_push($4.reg);
 					}else{
-					/*	string temp_reg = reg_alloc();
-						string true_label = next();
-						emit("lw	$sp, 1"); // 1 represent the truth value !
-						emit("j ");
-						string false_label = next();
-						emit("lw	$sp, 0"); // 1 represent the truth value !						
-						string next_label = next();*/
+						string true_label = st.cb.next();
+						string reg = st.reg_alloc();
+						st.cb.emit("subu");
+						st.cb.emit("li	" + reg + ", 1");
+						st.cb.emit("sw	" + reg + "(sp)");
+						int temp = st.cb.emit("j ");
+						string false_label = st.cb.next();
+						st.cb.emit("li	" + reg + ", 0");
+						string next_label = st.cb.next();
+						st.bpatch_one(temp, next_label);
+						st.cb.bpatch($4.true_list, true_label);
+						st.cb.bpatch($4.false_list, false_label);
 					}
 				}
 			| ID ASSIGN Exp SC {
@@ -738,14 +748,18 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 								st.cb.bpatch($1.false_list, st.cb.next());
 					 		 }      %prec then
 
-			| WHILEPART1 Statement {cout<< "QUADDDDDD " << $1.quad << endl;
-								$$.insert = false;
-								st.manage_insert( $2 , true);
-								st.is_while--;
-								$$.have_sure_exit = false;
-								//st.cb.bpatch($1.true_list, $2.quad);
-								st.bpatch_one(st.cb.emit("j "), $1.quad);
-								$$.next_list = $1.false_list;
+			| WHILEPART1 MQUAD Statement {
+												$$.insert = false;
+												st.manage_insert( $2 , true);
+												st.is_while--;
+												$$.have_sure_exit = false;
+												st.cb.bpatch($1.true_list, $2.quad);
+												st.bpatch_one(st.cb.emit("j "), $1.quad);
+												string label = st.cb.next();
+												st.cb.bpatch($1.false_list, label);
+												st.cb.bpatch($3.next_list, label);
+												st.cb.bpatch($1.false_list , $2.reg);
+												st.cb.emit("# End While Loop");
 							}
 			| BREAK SC {
 						$$.insert = false;	
@@ -755,7 +769,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 						}
 						$$.next_list = st.cb.makelist(st.cb.emit("j "));
 					}
-			| SWITCH1part LBRACE CaseList RBRACE SC{
+			| SWITCH1part LBRACE CaseList RBRACE SC {
 														$$.insert = false;
 														$$.have_sure_exit = false; 
 
@@ -764,9 +778,11 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 															std::stringstream label;
 															label << "label_";
 															label << $3.true_list[i + 1] - 1;
-															st.cb.bpatch(vector<int>($3.true_list[i]), label.str());
+															st.bpatch_one($3.true_list[i], label.str());
 														}
-														$$.next_list = st.cb.merge($3.next_list, vector<int>($3.true_list.back()));
+														vector<int> v = vector<int>();
+														v.push_back($3.true_list.back());
+														st.cb.bpatch(st.cb.merge($3.next_list, v), st.cb.next());
 														st.reg_free($1.reg);
 												    }
 
@@ -809,7 +825,7 @@ SWITCH1part	: SWITCH LPAREN Exp RPAREN {
 									}
 			;
 
-Mark2		:/* epsilon*/ { 
+Mark2		:/* epsilon*/ { 	st.cb.emit("# starting While loop");
 								st.is_while++;
  								$$.quad = st.cb.next(); // SHOULD BE QUAD NUMBER
 						  }
@@ -817,11 +833,11 @@ Mark2		:/* epsilon*/ {
 
 CaseList	: CaseStat CaseList {
 									$$.true_list = st.cb.merge($1.true_list, $2.true_list);
-									$$.next_list = st.cb.merge($1.next_list, $2.next_list);									
+									$$.next_list = st.cb.merge($1.next_list, $2.next_list);								
 								}
 			| CaseStat {
 							$$.true_list = $1.true_list;
-							$$.next_list = $1.next_list;
+							$$.next_list = $1.next_list;	
 						}
 			;
 
@@ -965,7 +981,7 @@ Exp	 		: LPAREN Exp RPAREN {
 						label << $$.reg;
 						label << ", ";
 						label << (new_info.offset + 1) * 4;
-						label << "($sp)";
+						label << "($fp)";
                     	st.cb.emit(label.str());
                     }
 			     }
