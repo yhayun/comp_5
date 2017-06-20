@@ -102,6 +102,20 @@ public:
     vector<bool> reg_pool;
     CodeBuffer& cb = CodeBuffer::instance();
 //Methods:
+    void emit_print(){
+    	cb.emit("__print:");
+    	cb.emit("lw	$a0, 0($sp)");
+    	cb.emit("li	$v0, 4");
+    	cb.emit("syscall");
+    	cb.emit("jr	$ra");
+    }
+    void emit_printI(){
+      	cb.emit("__printI:");
+    	cb.emit("lw	$a0, 0($sp)");
+    	cb.emit("li	$v0, 1");
+    	cb.emit("syscall");
+    	cb.emit("jr	$ra");
+    }
 	glob_data(){
 		big_scope_flag = false;
 		is_while = 0;
@@ -117,6 +131,8 @@ public:
 		printI_info.params.push_back(TYPE_INT);
 		symb_stack.back().push_back(print_info);
 		symb_stack.back().push_back(printI_info);
+		emit_print();
+		emit_printI();
 		for (int i = 0; i < NUM_REGS; ++i)
 			reg_pool.push_back(false);
 	}
@@ -332,6 +348,9 @@ public:
                 }
 	}
 
+	int get_curr_table_size(){
+		return symb_stack.back().size();
+	}
 	/**
 	 * Compare values with the operand in the relop string
 	 * @param  val1  [left operand]
@@ -557,6 +576,7 @@ public:
 Program 	: Funcs {
 					//st.check_for_main();
                     if (st.big_scope_flag) st.pop_table();
+                    st.cb.printDataBuffer();
                     st.cb.printCodeBuffer();
 				}
 			;
@@ -574,14 +594,14 @@ Funcs 		:	FuncDecl Funcs {
                         ;
 
 FuncDecl     : FuncDecl1 LBRACE Statements RBRACE{	
-			     if (!$3.have_sure_exit && st.func_return != TYPE_FUNC_VOID){
-			     	errorNotAllPaths(yylineno, $$.name.c_str()); 
-			     	exit(1);
-			     }			
-                st.pop_table();
-			 	st.func_return = -1;
-			 	
-               }
+													     if (!$3.have_sure_exit && st.func_return != TYPE_FUNC_VOID){
+													     	errorNotAllPaths(yylineno, $$.name.c_str()); 
+													     	exit(1);
+													     }
+										                st.pop_table();
+													 	st.func_return = -1;
+
+										         }
                ;
 
 FuncDecl1		: RetType ID LPAREN Formals RPAREN {  
@@ -598,7 +618,7 @@ FuncDecl1		: RetType ID LPAREN Formals RPAREN {
                     st.add_symbol_func(new_info);
                     st.push_table();
                     st.add_func_symbol_to_table($4.formal_list);	
-                    $$.name = $2.name;	
+                    $$.name = $2.name;
                     st.cb.emit("__"+ $2.name +":");	   				
 				}
 			;
@@ -618,8 +638,13 @@ Formals		 	: /*epsilon*/ {$$.formal_list = vector<pair<string,int> >();}
 			| FormalsList {$$.formal_list = $1.formal_list;}
 			;
 
-FormalsList 		: FormatDecl {$$.formal_list.insert($$.formal_list.begin()  ,make_pair($1.name ,$1.type));}
-			| FormatDecl COMMA FormalsList {$$.formal_list = $3.formal_list; $$.formal_list.insert($$.formal_list.begin(), make_pair($1.name,$1.type));}
+FormalsList 		: FormatDecl {
+										$$.formal_list.insert($$.formal_list.begin()  ,make_pair($1.name ,$1.type));
+								 }
+					| FormatDecl COMMA FormalsList {
+														$$.formal_list = $3.formal_list; 
+														$$.formal_list.insert($$.formal_list.begin(), make_pair($1.name,$1.type));
+										    		}
 			;
 
 FormatDecl  : Type ID {$$.type = $1.type; $$.name = $2.name;}
@@ -684,12 +709,15 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 					}else{
 						string true_label = st.cb.next();
 						string reg = st.reg_alloc();
-						st.cb.emit("subu");
+						st.cb.emit("subu	$sp, $sp, 4");
 						st.cb.emit("li	" + reg + ", 1");
-						st.cb.emit("sw	" + reg + "(sp)");
+						st.cb.emit("sw	" + reg + ", ($sp)");
 						int temp = st.cb.emit("j ");
 						string false_label = st.cb.next();
+						st.cb.emit("subu	$sp, $sp, 4");
 						st.cb.emit("li	" + reg + ", 0");
+						st.cb.emit("sw	" + reg + ", ($sp)");
+						st.reg_free(reg);
 						string next_label = st.cb.next();
 						st.bpatch_one(temp, next_label);
 						st.cb.bpatch($4.true_list, true_label);
@@ -722,12 +750,30 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 							ass << "($sp)";
 							st.cb.emit("sw	" + $3.reg + ", " + ass.str());
 						}else{ // DO BOOLBOOL
-
+							string true_label = st.cb.next();
+							string reg = st.reg_alloc();
+							st.cb.emit("subu	$sp, $sp, 4");
+							st.cb.emit("li	" + reg + ", 1");
+							st.cb.emit("sw	" + reg + ", ($sp)");
+							int temp = st.cb.emit("j ");
+							string false_label = st.cb.next();
+							st.cb.emit("subu	$sp, $sp, 4");
+							st.cb.emit("li	" + reg + ", 0");
+							st.cb.emit("sw	" + reg + ", ($sp)");
+							st.reg_free(reg);
+							string next_label = st.cb.next();
+							st.bpatch_one(temp, next_label);
+							st.cb.bpatch($3.true_list, true_label);
+							st.cb.bpatch($3.false_list, false_label);
 						}
 					}
 			| Call SC {
 					$$.insert = false;
 					$$.have_sure_exit = false;
+					st.cb.emit("# getting the frame pointer back !");
+					st.cb.emit("lw	$fp, ($sp)");
+					st.cb.emit("addu	$sp, $sp, 4");
+					st.reg_popall();
 				  }
 			| RETURN SC {
 					$$.have_sure_exit = true;
@@ -736,6 +782,12 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 						errorMismatch(yylineno);
 						exit(1);
 					}
+					for (int i = 0; i < st.get_curr_table_size(); ++i){
+						st.cb.emit("addu	$sp, $sp, 4");
+				    }
+					st.cb.emit("lw	$ra, ($sp)");
+					st.cb.emit("addu	$sp, $sp, 4");
+					st.cb.emit("jr	$ra");
 				}
 			| RETURN Exp SC {
 					$$.have_sure_exit = true;
@@ -748,7 +800,14 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 						errorByteTooLarge(yylineno, $2.name.c_str()); 
 						exit(1);
 					};
-					st.cb.emit("move $v0" + $2.reg);
+					st.cb.emit("# poping function local vars AND arguments !");
+					for (int i = 0; i < st.get_curr_table_size(); ++i){
+						st.cb.emit("addu	$sp, $sp, 4");
+				    }
+					st.cb.emit("move $v0, " + $2.reg);
+					st.cb.emit("lw	$ra, ($sp)");
+					st.cb.emit("addu	$sp, $sp, 4");
+					st.cb.emit("jr	$ra");
 				}
 			| IFPART1 MQUAD Statement ELSE MARK_BRK MQUAD Statement {
 							$$.have_sure_exit = ($2.have_sure_exit && $4.have_sure_exit) ? true : false;
@@ -893,7 +952,7 @@ MARK_BRK		:/*epsilon*/{
 								 $$.next_list = st.cb.makelist(st.cb.emit("j "));
 						}
 
-Call 			: ID LPAREN Mark_push ExpList RPAREN {
+Call 			: Call_begin Mark_push ExpList RPAREN {
 						//first we check that the function is defined
 								info func_info("dummy", -1, -1);
 								if (st.find_func($1.name,func_info) < 0){
@@ -904,7 +963,7 @@ Call 			: ID LPAREN Mark_push ExpList RPAREN {
 								for (vector<int>::iterator it1 = (func_info.params).begin();it1 != func_info.params.end();++it1){
 									int_to_name_push(*it1, proto_names);
 								}
-								if (!st.is_same_list(func_info.params, $4.exp_list)){
+								if (!st.is_same_list(func_info.params, $3.exp_list)){
 									errorPrototypeMismatch(yylineno, $1.name.c_str(), proto_names);
 									exit(1);
 								}
@@ -914,8 +973,11 @@ Call 			: ID LPAREN Mark_push ExpList RPAREN {
 								ExpList pushed args.
 								now we just set fp to poin to new sp.
 								 */
+								for (int i = 0; i < func_info.params.size(); ++i){
+									st.cb.emit("subu	$sp, $sp, 4");
+								}
 								st.cb.emit("# Set fp above sp -- now in new function frame #");
-								st.cb.emit("addu $fp, $sp, 4");
+								st.cb.emit("addu	$fp, $sp, 4");
 								st.cb.emit("jal	   __" + $1.name);
 							}
 			| ID LPAREN RPAREN {
@@ -934,28 +996,76 @@ Call 			: ID LPAREN Mark_push ExpList RPAREN {
 								$$.type = st.convert_type_func_to_var( func_info.type);
 			}
 			;
+Call_begin	:	ID LPAREN	{	
+								$$.name = $1.name;
+								info func_info("dummy", -1, -1);
+								if (st.find_func($1.name,func_info) < 0){
+									errorUndefFunc(yylineno, $1.name.c_str()); 
+									exit(1);
+								}
+								for (int i = 0; i < func_info.params.size(); ++i){
+									st.cb.emit("subu	$sp, $sp, 4");
+								}
+							}
+			;
 Mark_push		: /*epsilon*/ {
 								st.function_call();
 						  }
-
+			;
 ExpList		: Exp {
 				$$.exp_list.insert($$.exp_list.begin() ,$1.type);
-				if ($1.type != TYPE_BOOL)
-					st.reg_push($1.reg);
-				else{
-
+				if ($1.type != TYPE_BOOL && $1.type != TYPE_STRING ){
+					st.cb.emit("addu $sp, $sp ,4");
+					st.cb.emit("sw	" + $1.reg + ", ($sp)");
+				}else if($1.type != TYPE_STRING){
+					string true_label = st.cb.next();
+					string reg = st.reg_alloc();
+					st.cb.emit("addu	$sp, $sp, 4");
+					st.cb.emit("li	" + reg + ", 1");
+					st.cb.emit("sw	" + reg + ", ($sp)");
+					int temp = st.cb.emit("j ");
+					string false_label = st.cb.next();
+					st.cb.emit("addu	$sp, $sp, 4");
+					st.cb.emit("li	" + reg + ", 0");
+					st.cb.emit("sw	" + reg + ", ($sp)");
+					st.reg_free(reg);
+					string next_label = st.cb.next();
+					st.bpatch_one(temp, next_label);
+					st.cb.bpatch($1.true_list, true_label);
+					st.cb.bpatch($1.false_list, false_label);
+				}else{
+					st.cb.emit("la	$a0, " + $1.name);
 				}
 			}
-			| Exp COMMA ExpList {
-									$$.exp_list = $3.exp_list;
+			| Exp2 ExpList {
+									$$.exp_list = $2.exp_list;
 									$$.exp_list.insert($$.exp_list.begin() , $1.type);
-									if ($1.type != TYPE_BOOL)
-										st.reg_push($1.reg);
-									else{
-
-									}
-					    		}
+					       }
 			;
+Exp2		: Exp COMMA {
+									$$.type = $1.type;
+									if ($1.type != TYPE_BOOL){
+												st.cb.emit("addu $sp, $sp ,4");
+												st.cb.emit("sw	" + $1.reg + ", ($sp)");
+									}else{
+										string true_label = st.cb.next();
+										string reg = st.reg_alloc();
+										st.cb.emit("addu	$sp, $sp, 4");
+										st.cb.emit("li	" + reg + ", 1");
+										st.cb.emit("sw	" + reg + ", ($sp)");
+										int temp = st.cb.emit("j	");
+										string false_label = st.cb.next();
+										st.cb.emit("addu	$sp, $sp, 4");
+										st.cb.emit("li	" + reg + ", 0");
+										st.cb.emit("sw	" + reg + ", ($sp)");
+										st.reg_free(reg);
+										string next_label = st.cb.next();
+										st.bpatch_one(temp, next_label);
+										st.cb.bpatch($1.true_list, true_label);
+										st.cb.bpatch($1.false_list, false_label);
+									}
+
+			}
 
 Type 		: INT {$$.type = TYPE_INT;}
 			| BYTE {$$.type = TYPE_BYTE;}
@@ -1050,7 +1160,18 @@ Exp	 		: LPAREN Exp RPAREN {
 						label << $$.value;	
 		                st.cb.emit(label.str());
 			}
-			| STRING {$$.type = TYPE_STRING;}
+			| STRING {	$$.type = TYPE_STRING;
+ 						static int string_count = 0;
+ 						std::stringstream label;
+						label << "string_label_";
+						label << string_count;
+						$$.name =label.str();
+						label << ":";
+						label << "	.asciiz ";
+						label << $1.name;
+						st.cb.emitData(label.str());
+						string_count ++;
+					 }
 			| TRUE {
 						$$.true_list = st.cb.makelist(st.cb.emit("j ")); // what should do about false list ? 
 						$$.type = TYPE_BOOL;
