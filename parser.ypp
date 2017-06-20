@@ -100,7 +100,7 @@ public:
     //bad way(didn't find another) to handle a corner case: random ID string cause program -> to fail without proper error;
     bool big_scope_flag;
     vector<bool> reg_pool;
-    CodeBuffer& cb = CodeBuffer::instance();
+    CodeBuffer& cb;
 //Methods:
     void emit_print(){
     	cb.emit("__print:");
@@ -116,7 +116,7 @@ public:
     	cb.emit("syscall");
     	cb.emit("jr	$ra");
     }
-	glob_data(){
+	glob_data( CodeBuffer& glob_cb ) : cb(glob_cb) {
 		big_scope_flag = false;
 		is_while = 0;
 		func_return = -1;
@@ -528,9 +528,8 @@ public:
 //****************************************************************************************************
 //                                   Globals:
 //****************************************************************************************************
-	glob_data st;
-
-
+	CodeBuffer& cb = CodeBuffer::instance();
+	glob_data st(cb);
 
 
 
