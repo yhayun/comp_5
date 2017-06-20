@@ -1015,8 +1015,8 @@ Mark_push		: /*epsilon*/ {
 ExpList		: Exp {
 				$$.exp_list.insert($$.exp_list.begin() ,$1.type);
 				if ($1.type != TYPE_BOOL && $1.type != TYPE_STRING ){
-					st.cb.emit("addu $sp, $sp ,4");
 					st.cb.emit("sw	" + $1.reg + ", ($sp)");
+					st.cb.emit("addu $sp, $sp ,4");
 				}else if($1.type != TYPE_STRING){
 					string true_label = st.cb.next();
 					string reg = st.reg_alloc();
@@ -1045,8 +1045,8 @@ ExpList		: Exp {
 Exp2		: Exp COMMA {
 									$$.type = $1.type;
 									if ($1.type != TYPE_BOOL){
-												st.cb.emit("addu $sp, $sp ,4");
 												st.cb.emit("sw	" + $1.reg + ", ($sp)");
+												st.cb.emit("addu $sp, $sp ,4");
 									}else{
 										string true_label = st.cb.next();
 										string reg = st.reg_alloc();
