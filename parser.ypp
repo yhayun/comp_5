@@ -104,14 +104,13 @@ public:
 //Methods:
     void emit_print(){
     	cb.emit("__print:");
-    	cb.emit("lw	$a0, 0($sp)");
     	cb.emit("li	$v0, 4");
     	cb.emit("syscall");
     	cb.emit("jr	$ra");
     }
     void emit_printI(){
-      	cb.emit("__printI:");
-    	cb.emit("lw	$a0, 0($sp)");
+      	cb.emit("__printi:");
+      	cb.emit("lw $a0, 0($sp)");
     	cb.emit("li	$v0, 1");
     	cb.emit("syscall");
     	cb.emit("jr	$ra");
@@ -1125,7 +1124,7 @@ Exp	 		: LPAREN Exp RPAREN {
                     	std::stringstream label;
 						label << "lw	";
 						label << $$.reg;
-						label << ", ";
+						label << ", -";
 						label << (new_info.offset + 1) * 4;
 						label << "($fp)";
                     	st.cb.emit(label.str());
