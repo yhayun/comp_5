@@ -622,7 +622,14 @@ FuncDecl1		: RetType ID LPAREN Formals RPAREN {
                     st.push_table();
                     st.add_func_symbol_to_table($4.formal_list);	
                     $$.name = $2.name;
-                    st.cb.emit("__"+ $2.name +":");	   				
+                    if ($2.name == "main"){
+                    	st.cb.emit(".globl main");
+                    	st.cb.emit("main:");
+                    	st.cb.emit("move $fp, $sp");
+
+                    }else{
+                    	st.cb.emit("__" |+ $2.name +":" );
+                    }
 				}
 			;
 

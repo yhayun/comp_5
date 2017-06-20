@@ -1,17 +1,24 @@
 .data
-string_label_0:	.asciiz "Hello World !"
+string_label_0:	.asciiz "Q: why is johnny's dick so big ?"
 .text
 __print:
-#lw	$a0, 0($sp)
 li	$v0, 4
 syscall
 jr	$ra
 __printI:
-#lw	$a0, 0($sp)
 li	$v0, 1
 syscall
 jr	$ra
-__main:
+__f:
+addu	$sp, $sp, 4
+addu	$sp, $sp, 4
+addu	$sp, $sp, 4
+lw	$ra, ($sp)
+addu	$sp, $sp, 4
+jr	$ra
+.globl main
+main:
+subu	$sp, $sp, 4
 # Function Call #
 #Push all regs : begining.
 #**************************
@@ -60,6 +67,7 @@ sw	$fp, ($sp)
 subu $sp, $sp ,4
 sw	$ra, ($sp)
 la	$a0, string_label_0
+subu	$sp, $sp, 4
 # Set fp above sp -- now in new function frame #
 addu	$fp, $sp, 4
 jal	   __print
