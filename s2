@@ -1,7 +1,0 @@
-void main(){
-	int x = 5;
-	if ( x < 10 )
-		return;
-	while ( x != 1 )
-		x = x+1;
-}
