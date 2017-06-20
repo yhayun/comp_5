@@ -628,7 +628,7 @@ FuncDecl1		: RetType ID LPAREN Formals RPAREN {
                     	st.cb.emit("move $fp, $sp");
 
                     }else{
-                    	st.cb.emit("__" |+ $2.name +":" );
+                    	st.cb.emit("__" + $2.name +":" );
                     }
 				}
 			;
