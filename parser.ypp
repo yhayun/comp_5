@@ -166,17 +166,17 @@ public:
 	 */
 	void pop_table(){
 		//NOT COMPLETE:
-		endScope();
+		//endScope();
 		for (vector<info>::iterator it = symb_stack.back().begin(); it !=symb_stack.back().end(); ++it){
-			if ((*it).is_func == 0)
-				 printID((*it).name.c_str(), (*it).offset, int_to_name((*it).type));
-			else{
+			if ((*it).is_func == 0){
+				 //printID((*it).name.c_str(), (*it).offset, int_to_name((*it).type));
+			}else{
 				if ((*it).name == "print" || (*it).name == "printi") continue;
                                 vector<const char*> proto_names = vector<const char*>();
                                 for (vector<int>::iterator it1 = (*it).params.begin();it1 != (*it).params.end();++it1){
                                       int_to_name_push(*it1, proto_names);
 				}
-				cout<<(*it).name<<" "<<makeFunctionType(int_to_name((*it).type), proto_names)<<" "<<(*it).offset<<endl;
+				//cout<<(*it).name<<" "<<makeFunctionType(int_to_name((*it).type), proto_names)<<" "<<(*it).offset<<endl;
 				
 			}
 		}
