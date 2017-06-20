@@ -1007,6 +1007,7 @@ Call 			: Call_begin Mark_push ExpList RPAREN {
 			;
 Call_begin	:	ID LPAREN	{	
 								$$.name = $1.name;
+								st.function_call();
 								info func_info("dummy", -1, -1);
 								if (st.find_func($1.name,func_info) < 0){
 									errorUndefFunc(yylineno, $1.name.c_str()); 
@@ -1018,7 +1019,6 @@ Call_begin	:	ID LPAREN	{
 							}
 			;
 Mark_push		: /*epsilon*/ {
-								st.function_call();
 						  }
 			;
 ExpList		: Exp {
