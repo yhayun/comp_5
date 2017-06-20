@@ -444,7 +444,7 @@ public:
 		for (int i = 0; i < reg_pool.size(); ++i)
 			if (!reg_pool[i]){
 				reg_pool[i] = true;
-				return "$" + to_string(i + 8);
+				return "$" + std::to_string(i + 8);
 			}
 		cout << "unable to alloc another reg !" << endl;
 		exit(1);
@@ -455,7 +455,7 @@ public:
 		if (reg.size() == 0)
 			return ;
 		reg.erase(0,1);
-		reg_pool[stoi(reg) - 8] = false;
+		reg_pool[std::stoi(reg) - 8] = false;
 	}
 
 	void reg_push(string reg){
