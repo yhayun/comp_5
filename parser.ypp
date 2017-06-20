@@ -600,9 +600,18 @@ FuncDecl     : FuncDecl1 LBRACE Statements RBRACE{
 													     	errorNotAllPaths(yylineno, $$.name.c_str()); 
 													     	exit(1);
 													     }
-										                st.pop_table();
-													 	st.func_return = -1;
-
+													     // THIS CODE IS INSERTED IN CASE THAT THE PROGRAMMER DIDNT PUT RETURN
+													    if (st.func_return != TYPE_FUNC_VOID){
+															    for (int i = 0; i < st.get_curr_table_size(); ++i){
+																		st.cb.emit("addu	$sp, $sp, 4");
+																}
+																st.cb.emit("move $v0, " + $2.reg);
+																st.cb.emit("lw	$ra, ($sp)");
+																st.cb.emit("addu	$sp, $sp, 4");
+																st.cb.emit("jr	$ra");
+												                st.pop_table();
+															 	st.func_return = -1;
+														}
 										         }
                ;
 
@@ -780,6 +789,8 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 					$$.insert = false;
 					$$.have_sure_exit = false;
 					st.cb.emit("# getting the frame pointer back !");
+					st.cb.emit("lw	$ra, ($sp)");
+					st.cb.emit("addu	$sp, $sp, 4");
 					st.cb.emit("lw	$fp, ($sp)");
 					st.cb.emit("addu	$sp, $sp, 4");
 					st.reg_popall();
