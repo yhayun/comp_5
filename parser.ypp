@@ -603,17 +603,12 @@ FuncDecl     : FuncDecl1 LBRACE Statements RBRACE{
 													     	exit(1);
 													     }
 													     // THIS CODE IS INSERTED IN CASE THAT THE PROGRAMMER DIDNT PUT RETURN
-													    if (st.func_return != TYPE_FUNC_VOID){
+													    if (st.func_return == TYPE_FUNC_VOID){
 															    for (int i = 0; i < st.get_curr_table_size(); ++i){
 																		st.cb.emit("addu	$sp, $sp, 4");
 																}
-																st.cb.emit("move $v0, " + $2.reg);
-																st.cb.emit("lw	$ra, ($sp)");
-																st.cb.emit("addu	$sp, $sp, 4");
 																st.cb.emit("jr	$ra");
-												                st.pop_table();
-															 	st.func_return = -1;
-														}
+												        }
 										                st.pop_table();
 													 	st.func_return = -1;
 													 	if ($1.name == "main"){
@@ -796,7 +791,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 			| Call SC {
 					$$.insert = false;
 					$$.have_sure_exit = false;
-					st.cb.emit("# getting the frame pointer back !");
+					st.cb.emit("# getting the frame pointer back and return address!");
 					st.cb.emit("lw	$ra, ($sp)");
 					st.cb.emit("addu	$sp, $sp, 4");
 					st.cb.emit("lw	$fp, ($sp)");
@@ -810,11 +805,10 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 						errorMismatch(yylineno);
 						exit(1);
 					}
-					for (int i = 0; i < st.get_curr_table_size(); ++i){
-						st.cb.emit("addu	$sp, $sp, 4");
-				    }
-					st.cb.emit("lw	$ra, ($sp)");
+					st.cb.emit("# here we can make sure we CLEAR the stack");
+					int to_bp = st.cb.emit("beq $fp, $sp, ");
 					st.cb.emit("addu	$sp, $sp, 4");
+					st.bpatch_one(to_bp, st.cb.next());
 					st.cb.emit("jr	$ra");
 				}
 			| RETURN Exp SC {
@@ -828,13 +822,11 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 						errorByteTooLarge(yylineno, $2.name.c_str()); 
 						exit(1);
 					};
-					st.cb.emit("# poping function local vars AND arguments !");
-					for (int i = 0; i < st.get_curr_table_size(); ++i){
-						st.cb.emit("addu	$sp, $sp, 4");
-				    }
-					st.cb.emit("move $v0, " + $2.reg);
-					st.cb.emit("lw	$ra, ($sp)");
+					st.cb.emit("# here we can make sure we CLEAR the stack");
+					int to_bp = st.cb.emit("beq $fp, $sp, ");
 					st.cb.emit("addu	$sp, $sp, 4");
+					st.bpatch_one(to_bp, st.cb.next());
+					st.cb.emit("move $v0, " + $2.reg);
 					st.cb.emit("jr	$ra");
 				}
 			| IFPART1 MQUAD Statement ELSE MARK_BRK MQUAD Statement {
@@ -1004,9 +996,13 @@ Call 			: Call_begin Mark_push ExpList RPAREN {
 								for (int i = 0; i < func_info.params.size(); ++i){
 									st.cb.emit("subu	$sp, $sp, 4");
 								}
+								st.cb.emit("# clear our argument !");
 								st.cb.emit("# Set fp above sp -- now in new function frame #");
-								st.cb.emit("addu	$fp, $sp, 4");
+								st.cb.emit("move $fp, $sp");
 								st.cb.emit("jal	   __" + $1.name);
+								for (int i = 0; i < func_info.params.size(); ++i){
+									st.cb.emit("addu	$sp, $sp, 4");
+								}
 							}
 			| ID LPAREN RPAREN {
 						//first we check that the function is defined
