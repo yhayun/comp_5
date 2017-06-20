@@ -755,8 +755,8 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 						if ($3.type != TYPE_BOOL){
 							$$.have_sure_exit = false;
 							std::stringstream ass;
-							ass << ((st.get_var_offset($1.name) + 1)  * 4);
-							ass << "($sp)";
+							ass << -((st.get_var_offset($1.name) + 1)  * 4);
+							ass << "($fp)";
 							st.cb.emit("sw	" + $3.reg + ", " + ass.str());
 						}else{ // DO BOOLBOOL
 							string true_label = st.cb.next();
