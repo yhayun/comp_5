@@ -1126,7 +1126,7 @@ Exp	 		: LPAREN Exp RPAREN {
 						label << "lw	";
 						label << $$.reg;
 						label << ", ";
-						label << (new_info.offset + 1) * 4;
+						label << -(new_info.offset + 1) * 4;
 						label << "($fp)";
                     	st.cb.emit(label.str());
                     }
