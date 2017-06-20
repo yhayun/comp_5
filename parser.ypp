@@ -107,6 +107,7 @@ public:
     	cb.emit("li	$v0, 4");
     	cb.emit("syscall");
     	cb.emit("jr	$ra");
+    	cb.emit(".end __print");
     }
     void emit_printI(){
       	cb.emit("__printi:");
@@ -114,6 +115,7 @@ public:
     	cb.emit("li	$v0, 1");
     	cb.emit("syscall");
     	cb.emit("jr	$ra");
+		cb.emit(".end __printi");
     }
 	glob_data( CodeBuffer& glob_cb ) : cb(glob_cb) {
 		big_scope_flag = false;
@@ -612,6 +614,13 @@ FuncDecl     : FuncDecl1 LBRACE Statements RBRACE{
 												                st.pop_table();
 															 	st.func_return = -1;
 														}
+										                st.pop_table();
+													 	st.func_return = -1;
+													 	if ($1.name == "main"){
+									                    	st.cb.emit(".end " + $1.name);
+													 	}else{
+													 		st.cb.emit(".end __" + $1.name);
+													 	}
 										         }
                ;
 
@@ -634,7 +643,6 @@ FuncDecl1		: RetType ID LPAREN Formals RPAREN {
                     	st.cb.emit(".globl main");
                     	st.cb.emit("main:");
                     	st.cb.emit("move $fp, $sp");
-
                     }else{
                     	st.cb.emit("__" + $2.name +":" );
                     }
