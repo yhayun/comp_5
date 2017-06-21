@@ -877,7 +877,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 														for(int i=0; i < $3.true_list.size() - 1; i ++){
 															std::stringstream label;
 															label << "label_";
-															label << $3.true_list[i + 1] - 1;
+															label << $3.true_list[i + 1] - 2;
 															st.bpatch_one($3.true_list[i], label.str());
 														}
 														vector<int> v = vector<int>();
@@ -947,11 +947,14 @@ CaseStat	: CASE NUM COLON QUAD_CASE Statement MARK_BRK BREAK SC {
 																		$$.next_list = $6.next_list;
 																		//this quad is chainlist of case lables, need to bp in caselist.
 																		$$.quad = $4.quad;
-																		
-												                    	std::stringstream number;
-																		number << $2.value << ",";
-																		st.cb.bpatch($$.true_list , number.str());
-														 	 }
+																		std::stringstream num_val;
+																		num_val << $2.value;
+																		//bpatch the value into to li command and free quad's reg:
+																		st.cb.bpatch($4.next_list , num_val.str());
+																		//bpatch the jump command:
+																		st.cb.bpatch($$.true_list ,$4.reg + ", " + $$.reg + ",");	
+																		st.reg_free($4.reg);
+														 		 }
 			| CASE NUM B COLON QUAD_CASE Statement MARK_BRK BREAK SC {
 			                                                          	st.manage_insert( $6 , true);
 			                                                        	//both lists will get same backpatch to end of switch.
@@ -959,15 +962,22 @@ CaseStat	: CASE NUM COLON QUAD_CASE Statement MARK_BRK BREAK SC {
 																		$$.next_list = $7.next_list;
 																		//this quad is chainlist of case lables, need to bp in caselist.
 																		$$.quad = $5.quad;
-
-												                    	std::stringstream number;
-																		number << $2.value << ",";
-																		st.cb.bpatch($$.true_list , number.str());
-												  		}
+																		std::stringstream num_val;
+																		num_val << $2.value;
+																		//bpatch the value into to li command and free quad's reg:
+																		st.cb.bpatch($5.next_list , num_val.str());
+																		//bpatch the jump command:
+																		st.cb.bpatch($$.true_list ,$5.reg + ", " + $$.reg + ",");
+																		st.reg_free($5.reg);																	
+												  				}
 			;
 
 QUAD_CASE		: /*epsilon*/{
 								$$.quad = st.cb.next();
+								$$.reg = st.reg_alloc();
+                    			std::stringstream label;
+								label << "li	" << $$.reg << ", "; 
+								$$.next_list = st.cb.makelist(st.cb.emit(label.str()));
 								$$.true_list = st.cb.makelist(st.cb.emit("bne	"));
 						 }
 MARK_BRK		:/*epsilon*/{
