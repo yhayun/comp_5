@@ -190,7 +190,7 @@ public:
 	void pop_params(){
 				std::stringstream cmd;
 				cmd << "subu $sp, $fp, ";
-				cmd << symb_stack.back().size() * 4;
+				cmd << (symb_stack.back().size() - 1)* 4;
 				cb.emit(cmd.str());
 				
 	/*
@@ -864,7 +864,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 												st.cb.bpatch($1.false_list, label);
 												st.cb.bpatch($3.next_list, label);
 												st.cb.bpatch($1.false_list , $2.reg);
-												st.pop_params();
+												//st.pop_params();
 												st.cb.emit("# End While Loop");
 							}
 			| BREAK SC {
