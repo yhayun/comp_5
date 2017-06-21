@@ -169,6 +169,7 @@ public:
 	void pop_table(){
 		//NOT COMPLETE:
 		//endScope();
+		pop_params();
 		for (vector<info>::iterator it = symb_stack.back().begin(); it !=symb_stack.back().end(); ++it){
 			if ((*it).is_func == 0){
 				 //printID((*it).name.c_str(), (*it).offset, int_to_name((*it).type));
@@ -184,14 +185,13 @@ public:
 		}
 		symb_stack.pop_back();	
 
-		
 		offset_stack.pop();
 	}
 	void pop_params(){
 				std::stringstream cmd;
 				cmd << "subu $sp, $fp, ";
-				cmd << (symb_stack.back().size() - 1)* 4;
-				cb.emit(cmd.str());
+				cmd << (offset_stack.top()) * 4;
+				cb.emit(cmd.str() + " # fix sp");
 				
 	/*
 		for (int i = 0; i < symb_stack.back().size(); ++i)
@@ -703,7 +703,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 								  						  $$.next_list = $3.next_list;
 														  $$.have_sure_exit = $3.have_sure_exit;
 														  $$.insert = false;
-														  st.pop_params();
+														  //st.pop_params();
 														  st.pop_table();
 							    }
 				| Type ID SC {
@@ -866,7 +866,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 												st.cb.bpatch($1.false_list, label);
 												st.cb.bpatch($3.next_list, label);
 												st.cb.bpatch($1.false_list , $2.reg);
-												//st.pop_params();
+												st.pop_params();
 												st.cb.emit("# End While Loop");
 							}
 			| BREAK SC {
