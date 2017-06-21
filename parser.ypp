@@ -188,8 +188,14 @@ public:
 		offset_stack.pop();
 	}
 	void pop_params(){
+				std::stringstream cmd;
+				cmd << "subu $sp, $fp, ";
+				cmd << symb_stack.back().size() * 4;
+				cb.emit(cmd.str());
+				
+	/*
 		for (int i = 0; i < symb_stack.back().size(); ++i)
-			cb.emit("addu	$sp, $sp, 4");
+			cb.emit("addu	$sp, $fp, 4");*/
 	}
 	/**
 	 * Pushes info into current scope for normal vars
@@ -858,6 +864,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 												st.cb.bpatch($1.false_list, label);
 												st.cb.bpatch($3.next_list, label);
 												st.cb.bpatch($1.false_list , $2.reg);
+												st.pop_params();
 												st.cb.emit("# End While Loop");
 							}
 			| BREAK SC {
