@@ -836,10 +836,10 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 					st.cb.emit("jr	$ra");
 				}
 			| IFPART1 MQUAD Statement ELSE MARK_BRK MQUAD Statement {
-							$$.have_sure_exit = ($3.have_sure_exit && $6.have_sure_exit) ? true : false;
+							$$.have_sure_exit = ($3.have_sure_exit && $7.have_sure_exit) ? true : false;
 							$$.insert = false;
 							st.manage_insert( $3 , true);
-							st.manage_insert( $6 , true);
+							st.manage_insert( $7 , true);
 							st.cb.bpatch($1.true_list,$2.quad );
 							st.cb.bpatch($1.false_list,$6.quad );
 							st.cb.bpatch($5.next_list, st.cb.next());
