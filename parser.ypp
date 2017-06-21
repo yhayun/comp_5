@@ -808,9 +808,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 						exit(1);
 					}
 					st.cb.emit("# here we can make sure we CLEAR the stack");
-					int to_bp = st.cb.emit("beq $fp, $sp, ");
-					st.cb.emit("addu	$sp, $sp, 4");
-					st.bpatch_one(to_bp, st.cb.next());
+					st.cb.emit("move $fp, $sp");
 					st.cb.emit("jr	$ra");
 				}
 			| RETURN Exp SC {
