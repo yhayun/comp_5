@@ -841,6 +841,8 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 							st.cb.bpatch($1.true_list,$2.quad );
 							st.cb.bpatch($1.false_list,$6.quad );
 							st.cb.bpatch($5.next_list, st.cb.next());
+							//for breaks:
+							$$.next_list = st.cb.merge($3.next_list,$7.next_list);
 						}
 			| IFPART1 MQUAD Statement {	
 								$$.have_sure_exit = false;
