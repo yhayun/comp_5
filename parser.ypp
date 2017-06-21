@@ -830,10 +830,10 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 					st.cb.emit("jr	$ra");
 				}
 			| IFPART1 MQUAD Statement ELSE MARK_BRK MQUAD Statement {
-							$$.have_sure_exit = ($2.have_sure_exit && $4.have_sure_exit) ? true : false;
+							$$.have_sure_exit = ($3.have_sure_exit && $6.have_sure_exit) ? true : false;
 							$$.insert = false;
-							st.manage_insert( $2 , true);
-							st.manage_insert( $4 , true);
+							st.manage_insert( $3 , true);
+							st.manage_insert( $6 , true);
 							st.cb.bpatch($1.true_list,$2.quad );
 							st.cb.bpatch($1.false_list,$6.quad );
 							st.cb.bpatch($5.next_list, st.cb.next());
@@ -842,14 +842,14 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 								$$.have_sure_exit = false;
 								$$.next_list = $3.next_list;
 								$$.insert = false;
-								st.manage_insert($2, true);
+								st.manage_insert($3, true);
 								st.cb.bpatch($1.true_list,$2.quad );
 								st.cb.bpatch($1.false_list, st.cb.next());
 					 		 }      %prec then
 
 			| WHILEPART1 MQUAD Statement {
 												$$.insert = false;
-												st.manage_insert( $2 , true);
+												st.manage_insert( $3 , true);
 												st.is_while--;
 												$$.have_sure_exit = false;
 												st.cb.bpatch($1.true_list, $2.quad);
@@ -1000,11 +1000,7 @@ Call 			: Call_begin Mark_push ExpList RPAREN {
 									exit(1);
 								}
 								$$.type = st.convert_type_func_to_var( func_info.type);
-								/*
-								Mark_Push saved regs, fp, ra.
-								ExpList pushed args.
-								now we just set fp to poin to new sp.
-								 */
+
 								for (int i = 0; i < func_info.params.size(); ++i){
 									st.cb.emit("subu	$sp, $sp, 4");
 								}
