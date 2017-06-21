@@ -840,6 +840,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 						}
 			| IFPART1 MQUAD Statement {	
 								$$.have_sure_exit = false;
+								$$.next_list = $3.next_list;
 								$$.insert = false;
 								st.manage_insert($2, true);
 								st.cb.bpatch($1.true_list,$2.quad );
@@ -865,6 +866,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 							errorUnexpectedBreak(yylineno); 
 							exit(1);
 						}
+						st.cb.emit("#break statement");
 						$$.next_list = st.cb.makelist(st.cb.emit("j "));
 					}
 			| SWITCH1part LBRACE CaseList RBRACE SC {
