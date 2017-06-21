@@ -468,19 +468,25 @@ public:
 		cb.emit("sw	" + reg + ", ($sp)");
 	}
 
-	void reg_pushall(){
+	vector<int> reg_pushall(){
+		vector<int> new_vec = vector<int>();
 		cb.emit("#Push all regs : begining.");
 		cb.emit("#**************************");	
 		cb.emit("");
 		for (int i = 0; i < reg_pool.size(); ++i){
-			std::stringstream label;
-			label << "$";
-			label << (i + 8);
-			reg_push(label.str());
+			if (reg_pool[i]){
+				std::stringstream label;
+				label << "$";
+				label << (i + 8);
+				reg_push(label.str());
+				new_vec.push_back(i);
+				reg_pool[i] = 0;
+			}
 		}
 		cb.emit("");
 		cb.emit("#Push all regs : end.");
 		cb.emit("#**************************");	
+		return new_vec;
 
 	}
 
@@ -489,17 +495,18 @@ public:
 		cb.emit("addu	$sp, $sp, 4");
 	}
 
-	void reg_popall(){
+	void reg_popall(vector<int> v){
 		cb.emit("#Pop all regs : begining.");
 		cb.emit("#**************************");	
 		cb.emit("");
-		for (int i = reg_pool.size() - 1; i >= 0; --i){
+		for (int i = v.size() - 1; i >= 0; --i){
 			std::stringstream label;
 			label << "$";
-			label << (i + 8);
+			label << (v[i] + 8);
 			reg_pop(label.str());
+			reg_pool[v[i]] = 1;
 		}
-				cb.emit("");
+		cb.emit("");
 		cb.emit("#Pop all regs : end.");
 		cb.emit("#**************************");	
 	}
@@ -508,12 +515,12 @@ public:
 	 * save all regs, fp reg, ra reg - before calling to a function, we will then use call_set_args().
 	 *  this fucntion is called inside mark_push.
 	 */
-	void function_call(){
+	vector<int> function_call(){
 		cb.emit("# Function Call #");
-		reg_pushall();
+		vector<int> v = reg_pushall();
 		reg_push("$fp");
 		reg_push("$ra");
-
+		return v;
 	}
 
 	void bpatch_one(int i, string s){
@@ -604,10 +611,11 @@ FuncDecl     : FuncDecl1 LBRACE Statements RBRACE{
 													     }
 													     // THIS CODE IS INSERTED IN CASE THAT THE PROGRAMMER DIDNT PUT RETURN
 													    if (st.func_return == TYPE_FUNC_VOID){
-															    for (int i = 0; i < st.get_curr_table_size(); ++i){
-																		st.cb.emit("addu	$sp, $sp, 4");
-																}
-																st.cb.emit("jr	$ra");
+															st.cb.emit("# here we can make sure we CLEAR the stack");
+															int to_bp = st.cb.emit("beq $fp, $sp, ");
+															st.cb.emit("addu	$sp, $sp, 4");
+															st.bpatch_one(to_bp, st.cb.next());
+															st.cb.emit("jr	$ra");
 												        }
 										                st.pop_table();
 													 	st.func_return = -1;
@@ -791,12 +799,6 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 			| Call SC {
 					$$.insert = false;
 					$$.have_sure_exit = false;
-					st.cb.emit("# getting the frame pointer back and return address!");
-					st.cb.emit("lw	$ra, ($sp)");
-					st.cb.emit("addu	$sp, $sp, 4");
-					st.cb.emit("lw	$fp, ($sp)");
-					st.cb.emit("addu	$sp, $sp, 4");
-					st.reg_popall();
 				  }
 			| RETURN SC {
 					$$.have_sure_exit = true;
@@ -1003,6 +1005,12 @@ Call 			: Call_begin Mark_push ExpList RPAREN {
 								for (int i = 0; i < func_info.params.size(); ++i){
 									st.cb.emit("addu	$sp, $sp, 4");
 								}
+								st.cb.emit("# getting the frame pointer back and return address!");
+								st.cb.emit("lw	$ra, ($sp)");
+								st.cb.emit("addu	$sp, $sp, 4");
+								st.cb.emit("lw	$fp, ($sp)");
+								st.cb.emit("addu	$sp, $sp, 4");
+								st.reg_popall($1.reg_list);
 							}
 			| ID LPAREN RPAREN {
 						//first we check that the function is defined
@@ -1022,7 +1030,8 @@ Call 			: Call_begin Mark_push ExpList RPAREN {
 			;
 Call_begin	:	ID LPAREN	{	
 								$$.name = $1.name;
-								st.function_call();
+								// the reason i put formal list here is not to add another attr !!
+								$$.reg_list = st.function_call();
 								info func_info("dummy", -1, -1);
 								if (st.find_func($1.name,func_info) < 0){
 									errorUndefFunc(yylineno, $1.name.c_str()); 
@@ -1151,7 +1160,7 @@ Exp	 		: LPAREN Exp RPAREN {
                     	if ($1.type == TYPE_INT || $1.type == TYPE_BYTE || $1.type == TYPE_FUNC_INT ||
                     															 $1.type == TYPE_FUNC_BYTE){
                     		$$.reg = st.reg_alloc();
-                    		st.cb.emit("lw	" + $$.reg + "$v0");
+                    		st.cb.emit("move	" + $$.reg +", " + "$v0");
                     	}
 				}
 			| NUM {
