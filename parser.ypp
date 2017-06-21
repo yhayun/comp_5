@@ -620,6 +620,8 @@ FuncDecl     : FuncDecl1 LBRACE Statements RBRACE{
 										                st.pop_table();
 													 	st.func_return = -1;
 													 	if ($1.name == "main"){
+													 		st.cb.emit("li  $v0,  10 # call to end prog");
+															st.cb.emit("syscall"); 
 									                    	st.cb.emit(".end " + $1.name);
 													 	}else{
 													 		st.cb.emit(".end __" + $1.name);
@@ -1045,8 +1047,10 @@ Call_begin	:	ID LPAREN	{
 									errorUndefFunc(yylineno, $1.name.c_str()); 
 									exit(1);
 								}
-								for (int i = 0; i < func_info.params.size(); ++i){
-									st.cb.emit("subu	$sp, $sp, 4");
+								if ($1.name != "print"){
+									for (int i = 0; i < func_info.params.size(); ++i){
+										st.cb.emit("subu	$sp, $sp, 4");
+									}
 								}
 							}
 			;
@@ -1075,6 +1079,7 @@ ExpList		: Exp {
 					st.cb.bpatch($1.true_list, true_label);
 					st.cb.bpatch($1.false_list, false_label);
 				}else{
+					//string case:
 					st.cb.emit("la	$a0, " + $1.name);
 				}
 			}
