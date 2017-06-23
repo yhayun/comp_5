@@ -134,6 +134,7 @@ public:
 		symb_stack.back().push_back(printI_info);
 		emit_print();
 		emit_printI();
+		cb.emitData("div_zero_label: .asciiz \"Error division by zero\n\"");
 		for (int i = 0; i < NUM_REGS; ++i)
 			reg_pool.push_back(false);
 	}
@@ -1146,6 +1147,17 @@ Exp	 		: LPAREN Exp RPAREN {
 						
 						$$.type =( $1.type == TYPE_INT || $3.type == TYPE_INT) ? TYPE_INT : TYPE_BYTE;
 						$$.reg = $1.reg;
+						if ($2.name == "/"){
+							string check_reg = st.reg_alloc();
+							st.cb.emit("li " + check_reg + ", 0 ");
+							int to_bp = st.cb.emit("bne " + check_reg + ", " + $3.reg + ", ");
+							st.cb.emit("la $a0, div_zero_label");
+							st.cb.emit("jal __print");
+							st.cb.emit("li $v0, 10");
+							st.cb.emit("syscall");
+							st.bpatch_one(to_bp, st.cb.next());
+							st.reg_free(check_reg);
+						}
 						st.emit_calc($1.reg, $2.name, $1.reg, $3.reg);
 						st.reg_free($3.reg);
 					}
