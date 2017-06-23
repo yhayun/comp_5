@@ -1160,8 +1160,8 @@ Exp	 		: LPAREN Exp RPAREN {
 						errorUndef(yylineno, $1.name.c_str()); 
 						exit(1);
 					}
-                    if ($1.type == TYPE_INT || $1.type == TYPE_BYTE || $1.type == TYPE_FUNC_INT ||
-                    															 $1.type == TYPE_FUNC_BYTE){
+                    if ($$.type == TYPE_INT || $$.type == TYPE_BYTE || $$.type == TYPE_FUNC_INT ||
+                    															 $$.type == TYPE_FUNC_BYTE){
                     	$$.reg = st.reg_alloc();
                     	std::stringstream label;
 						label << "lw	";
@@ -1170,6 +1170,21 @@ Exp	 		: LPAREN Exp RPAREN {
 						label << -(new_info.offset + 1) * 4;
 						label << "($fp)";
                     	st.cb.emit(label.str());
+                    }else{
+                    	string reg = st.reg_alloc();
+                    	string reg1 = st.reg_alloc();
+						std::stringstream label;
+						label << "lw	";
+						label << reg;
+						label << ", ";
+						label << -(new_info.offset + 1) * 4;
+						label << "($fp)";
+                    	st.cb.emit("li " + reg1 + ", 1");
+                        int s =st.cb.emit("beq " + reg + ", " + reg1 + ", ");
+                        $$.true_list = st.cb.makelist(s);
+						$$.false_list = st.cb.makelist(st.cb.emit("j "));
+						st.reg_free(reg);
+						st.reg_free(reg1);
                     }
 			     }
 			| Call {
