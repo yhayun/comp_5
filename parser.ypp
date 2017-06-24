@@ -737,7 +737,9 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 						exit(1);
 					}
 					if ($1.type == TYPE_BYTE && $4.value > 255){
-						errorByteTooLarge(yylineno, $4.name.c_str()); 
+							std::stringstream ass;
+							ass << $4.value;
+							errorByteTooLarge(yylineno, ass.str().c_str());
 						exit(1);
 					}
 					if ( $1.type == TYPE_BYTE && $4.type == TYPE_INT){
@@ -781,7 +783,9 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 							exit(1);
 						}
 						if (res == TYPE_BYTE && $3.value > 255){
-							errorByteTooLarge(yylineno, $3.name.c_str()); 
+							std::stringstream ass;
+							ass << $3.value;
+							errorByteTooLarge(yylineno, ass.str().c_str()); 
 							exit(1);
 						}
 						if ( $1.type == TYPE_BYTE && $4.type == TYPE_INT){
