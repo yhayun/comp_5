@@ -28,6 +28,7 @@ typedef struct
 	vector<int> true_list;
 	vector<int> false_list;
 	vector<int> next_list;
+	vector<int> break_list;
 	vector<int> reg_list;
 } STYPE;
 
