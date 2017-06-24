@@ -1,13 +1,4 @@
 parser.tab.*
 lex.yy.c
-s1
-s2
-s3
-s4
-s5
-s6
 hw5
-shoval*
-tt*
 .DS_Store
-output*
