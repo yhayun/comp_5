@@ -1,7 +1,0 @@
-void f(int x){ 
-   int y =5;return;
-}
-
-void main(){
- f(4);
-}

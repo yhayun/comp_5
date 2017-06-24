@@ -1,9 +1,0 @@
-void f(bool x, int i){
-	if (x)
-		printi(i);
-}
-
-void main(){
-	f(true,1);
-	f(false, 2);
-}
