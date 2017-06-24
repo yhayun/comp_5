@@ -1032,13 +1032,14 @@ Call 			: Call_begin Mark_push ExpList RPAREN {
 									exit(1);
 								}
 								$$.type = st.convert_type_func_to_var( func_info.type);
-								for (int i = 0; i < $3.prepare_call_list.size(); ++i){
-									    std::stringstream label;
-									    label << i*4;
-									    label << "($sp)";
-									    for (int j = 0; j < $3.prepare_call_list[i].size() ; ++j)
-									    	st.bpatch_one($3.prepare_call_list[i][j], label.str());
-								}/*
+								if ($1.name != "print")
+									for (int i = 0; i < $3.prepare_call_list.size(); ++i){
+										    std::stringstream label;
+										    label << i*4;
+										    label << "($sp)";
+										    for (int j = 0; j < $3.prepare_call_list[i].size() ; ++j)
+										    	st.bpatch_one($3.prepare_call_list[i][j], label.str());
+									}/*
 								for (int i = 0; i < func_info.params.size(); ++i){
 									st.cb.emit("subu	$sp, $sp, 4");
 								}*/
@@ -1046,9 +1047,10 @@ Call 			: Call_begin Mark_push ExpList RPAREN {
 								st.cb.emit("# Set fp above sp -- now in new function frame #");
 								st.cb.emit("move $fp, $sp");
 								st.cb.emit("jal	   __" + $1.name);
-								for (int i = 0; i < func_info.params.size(); ++i){
-									st.cb.emit("addu	$sp, $sp, 4");
-								}
+								if ($1.name != "print")
+									for (int i = 0; i < func_info.params.size(); ++i){
+										st.cb.emit("addu	$sp, $sp, 4");
+									}
 								st.cb.emit("# getting the frame pointer back and return address!");
 								st.cb.emit("lw	$ra, ($sp)");
 								st.cb.emit("addu	$sp, $sp, 4");
