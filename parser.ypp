@@ -551,41 +551,42 @@ public:
 
 
 %}
-
-%token ID
+%token VOID
+%token INT
+%token BYTE
+%token B
+%token BOOL
+%token TRUE
+%token FALSE
+%token RETURN
+%token IF
+%token NUM
+%token WHILE
+%token SWITCH
+%token CASE
+%token BREAK
+%token COLON
+%token SC
+%token COMMA
 %token LPAREN
 %token RPAREN
 %token LBRACE
 %token RBRACE
-%token COMMA
-%token SC
 %token ASSIGN
-%token RETURN
-%token WHILE
-
-%right IF
-%right ELSE
-
-%token BREAK
-%token SWITCH
-%token CASE
-%token NUM
-%token B
-%token COLON
-
+%token ID
 %token STRING
-%token TRUE
-%token FALSE
-
-%token INT
-%token BOOL
-%token BYTE
-%token VOID
-
-%left OR
+%token whitespace
+%token comment
+%right then ELSE
+	
 %left AND
+%left OR
 %left RELOP
-%right BINOP
+%right BINOPADD
+%right BINOPMIN
+%right BINOPMUL
+%right BINOPDIV
+
 
 %left NOT
 
@@ -873,7 +874,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 								st.manage_insert($3, true);
 								st.cb.bpatch($1.true_list,$2.quad );
 								st.cb.bpatch($1.false_list, st.cb.next());
-					 		 }   
+					 		 }    %prec then
 
 			| WHILEPART1 MQUAD Statement {
 												$$.insert = false;
@@ -1187,7 +1188,7 @@ Exp	 		: LPAREN Exp RPAREN {
 									$$.break_list = $2.break_list;
 									$$.false_list = $2.false_list;
 							}
-			| Exp BINOP Exp {
+			| Exp BINOPMUL Exp {
                          if ($1.is_true != UNDEFINED && $3.is_true != UNDEFINED && !($2.name == "/" && $3.value == 0)){
                          	$$.value = st.calc_binop($1.value,  $2.name, $3.value);
                            	$$.is_true = ($$.value != 0) ? T_VAL : F_VAL ;
@@ -1215,6 +1216,91 @@ Exp	 		: LPAREN Exp RPAREN {
 						st.emit_calc($1.reg, $2.name, $1.reg, $3.reg);
 						st.reg_free($3.reg);
 					}
+			| Exp BINOPADD Exp {
+                         if ($1.is_true != UNDEFINED && $3.is_true != UNDEFINED && !($2.name == "/" && $3.value == 0)){
+                         	$$.value = st.calc_binop($1.value,  $2.name, $3.value);
+                           	$$.is_true = ($$.value != 0) ? T_VAL : F_VAL ;
+                         }else{
+                            $$.is_true = UNDEFINED;
+                         }
+                         if (!($1.type == TYPE_INT || $1.type == TYPE_BYTE) || !($3.type == TYPE_INT || $3.type == TYPE_BYTE)){
+                         	errorMismatch(yylineno);
+                         	exit(1);
+                         }
+						
+						$$.type =( $1.type == TYPE_INT || $3.type == TYPE_INT) ? TYPE_INT : TYPE_BYTE;
+						$$.reg = $1.reg;
+						if ($2.name == "/"){
+							string check_reg = st.reg_alloc();
+							st.cb.emit("li " + check_reg + ", 0 ");
+							int to_bp = st.cb.emit("bne " + check_reg + ", " + $3.reg + ", ");
+							st.cb.emit("la $a0, div_zero_label");
+							st.cb.emit("jal __print");
+							st.cb.emit("li $v0, 10");
+							st.cb.emit("syscall");
+							st.bpatch_one(to_bp, st.cb.next());
+							st.reg_free(check_reg);
+						}
+						st.emit_calc($1.reg, $2.name, $1.reg, $3.reg);
+						st.reg_free($3.reg);
+					}
+			| Exp BINOPMIN Exp {
+                         if ($1.is_true != UNDEFINED && $3.is_true != UNDEFINED && !($2.name == "/" && $3.value == 0)){
+                         	$$.value = st.calc_binop($1.value,  $2.name, $3.value);
+                           	$$.is_true = ($$.value != 0) ? T_VAL : F_VAL ;
+                         }else{
+                            $$.is_true = UNDEFINED;
+                         }
+                         if (!($1.type == TYPE_INT || $1.type == TYPE_BYTE) || !($3.type == TYPE_INT || $3.type == TYPE_BYTE)){
+                         	errorMismatch(yylineno);
+                         	exit(1);
+                         }
+						
+						$$.type =( $1.type == TYPE_INT || $3.type == TYPE_INT) ? TYPE_INT : TYPE_BYTE;
+						$$.reg = $1.reg;
+						if ($2.name == "/"){
+							string check_reg = st.reg_alloc();
+							st.cb.emit("li " + check_reg + ", 0 ");
+							int to_bp = st.cb.emit("bne " + check_reg + ", " + $3.reg + ", ");
+							st.cb.emit("la $a0, div_zero_label");
+							st.cb.emit("jal __print");
+							st.cb.emit("li $v0, 10");
+							st.cb.emit("syscall");
+							st.bpatch_one(to_bp, st.cb.next());
+							st.reg_free(check_reg);
+						}
+						st.emit_calc($1.reg, $2.name, $1.reg, $3.reg);
+						st.reg_free($3.reg);
+					}
+			| Exp BINOPDIV Exp {
+                         if ($1.is_true != UNDEFINED && $3.is_true != UNDEFINED && !($2.name == "/" && $3.value == 0)){
+                         	$$.value = st.calc_binop($1.value,  $2.name, $3.value);
+                           	$$.is_true = ($$.value != 0) ? T_VAL : F_VAL ;
+                         }else{
+                            $$.is_true = UNDEFINED;
+                         }
+                         if (!($1.type == TYPE_INT || $1.type == TYPE_BYTE) || !($3.type == TYPE_INT || $3.type == TYPE_BYTE)){
+                         	errorMismatch(yylineno);
+                         	exit(1);
+                         }
+						
+						$$.type =( $1.type == TYPE_INT || $3.type == TYPE_INT) ? TYPE_INT : TYPE_BYTE;
+						$$.reg = $1.reg;
+						if ($2.name == "/"){
+							string check_reg = st.reg_alloc();
+							st.cb.emit("li " + check_reg + ", 0 ");
+							int to_bp = st.cb.emit("bne " + check_reg + ", " + $3.reg + ", ");
+							st.cb.emit("la $a0, div_zero_label");
+							st.cb.emit("jal __print");
+							st.cb.emit("li $v0, 10");
+							st.cb.emit("syscall");
+							st.bpatch_one(to_bp, st.cb.next());
+							st.reg_free(check_reg);
+						}
+						st.emit_calc($1.reg, $2.name, $1.reg, $3.reg);
+						st.reg_free($3.reg);
+					}
+
 			| ID {
 					int res = -1;
 					info new_info("",-1,-1);

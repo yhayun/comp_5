@@ -41,7 +41,10 @@ LBRACE		\{
 RBRACE		\}
 ASSIGN		\=
 RELOP		\=\=|\!\=|\<|\>|\>\=|\<\=
-BINOP		\+|\-|\*|\/
+BINOPADD		\+
+BINOPMUL		\*
+BINOPDIV		\/
+BINOPMIN		\-
 ID 			[a-zA-Z][a-zA-Z0-9]*
 NUM 		0|[1-9][0-9]*
 STRING		\"([^\n\r\"\\]|\\[rnt"\\])+\"
@@ -76,8 +79,10 @@ comment		\/\/[^\r\n]*[\r|\n|\r\n]?
 {RBRACE}	{yylval.name = yytext ;return RBRACE;}
 {ASSIGN}	{yylval.name = yytext ;return ASSIGN;}
 {RELOP}		{yylval.name = yytext ;return RELOP;}
-{BINOP}		{yylval.name = yytext ;return BINOP;}
-
+{BINOPMUL}		{yylval.name = yytext ;return BINOPMUL;}
+{BINOPDIV}		{yylval.name = yytext ;return BINOPDIV;}
+{BINOPADD}		{yylval.name = yytext ;return BINOPADD;}
+{BINOPMIN}		{yylval.name = yytext ;return BINOPMIN;}
 {ID}		{	
 			yylval.name = yytext ;
 			return ID;
