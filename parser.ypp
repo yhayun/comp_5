@@ -585,6 +585,7 @@ public:
 %left RELOP
 %left BINOP	
 %left NOT
+
 %%
 
 
