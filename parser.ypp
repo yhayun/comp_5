@@ -582,7 +582,7 @@ public:
 	
 %right AND
 %right OR
-%left RELOP
+%right RELOP
 %right BINOP
 %right NOT	
 
