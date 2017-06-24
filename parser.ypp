@@ -552,38 +552,41 @@ public:
 
 %}
 
-%token VOID
-%token INT
-%token BYTE
-%token B
-%token BOOL
-%token TRUE
-%token FALSE
-%token RETURN
-%right IF
-%token NUM
-%token WHILE
-%token SWITCH
-%token CASE
-%token BREAK
-%token COLON
-%token SC
-%token COMMA
+%token ID
 %token LPAREN
 %token RPAREN
 %token LBRACE
 %token RBRACE
+%token COMMA
+%token SC
 %token ASSIGN
-%token ID
-%token STRING
-%token whitespace
-%token comment
-%right then ELSE
+%token RETURN
+%token WHILE
 
-%left OR	
+%right IF
+%right ELSE
+
+%token BREAK
+%token SWITCH
+%token CASE
+%token NUM
+%token B
+%token COLON
+
+%token STRING
+%token TRUE
+%token FALSE
+
+%token INT
+%token BOOL
+%token BYTE
+%token VOID
+
+%left OR
 %left AND
 %left RELOP
-%left BINOP	
+%right BINOP
+
 %left NOT
 
 %%
@@ -870,7 +873,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 								st.manage_insert($3, true);
 								st.cb.bpatch($1.true_list,$2.quad );
 								st.cb.bpatch($1.false_list, st.cb.next());
-					 		 }      %prec then
+					 		 }   
 
 			| WHILEPART1 MQUAD Statement {
 												$$.insert = false;
