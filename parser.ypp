@@ -188,16 +188,14 @@ public:
 
 		offset_stack.pop();
 	}
+
 	void pop_params(){
 				std::stringstream cmd;
 				cmd << "subu $sp, $fp, ";
 				cmd << (offset_stack.top()) * 4;
 				cb.emit(cmd.str() + " # fix sp");
-				
-	/*
-		for (int i = 0; i < symb_stack.back().size(); ++i)
-			cb.emit("addu	$sp, $fp, 4");*/
 	}
+
 	/**
 	 * Pushes info into current scope for normal vars
 	 * @param x [info]
@@ -612,23 +610,26 @@ Funcs 		:	FuncDecl Funcs {
                         ;
 
 FuncDecl     : FuncDecl1 LBRACE Statements RBRACE{	
-													     if (!$3.have_sure_exit && st.func_return != TYPE_FUNC_VOID){
+													    if (!$3.have_sure_exit && st.func_return != TYPE_FUNC_VOID){
 													     	errorNotAllPaths(yylineno, $$.name.c_str()); 
 													     	exit(1);
-													     }
-													     // THIS CODE IS INSERTED IN CASE THAT THE PROGRAMMER DIDNT PUT RETURN
-													    if (st.func_return == TYPE_FUNC_VOID){
+													    }
+													    //Quad for end of function:
+													    $$.quad = st.cb.next(); 
+													    st.cb.bpatch($3.next_list, $$.quad);
+													    if (st.func_return == TYPE_FUNC_VOID && $1.name != "main"){
 															st.cb.emit("# here we can make sure we CLEAR the stack");
 															st.cb.emit("move	$fp, $sp");
 															st.cb.emit("jr	$ra");
 												        }
-										                st.pop_table();
 													 	st.func_return = -1;
 													 	if ($1.name == "main"){
 													 		st.cb.emit("li  $v0,  10 # call to end prog");
 															st.cb.emit("syscall"); 
 									                    	st.cb.emit(".end " + $1.name);
+									                    	//st.pop_table();
 													 	}else{
+													 		st.pop_table();
 													 		st.cb.emit(".end __" + $1.name);
 													 	}
 										         }
@@ -814,9 +815,8 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 						errorMismatch(yylineno);
 						exit(1);
 					}
-					st.cb.emit("# here we can make sure we CLEAR the stack");
-					st.cb.emit("move $sp, $fp");
-					st.cb.emit("jr	$ra");
+					st.cb.emit("# return from function: jumps to end");
+					$$.next_list = st.cb.makelist(st.cb.emit("j "));
 				}
 			| RETURN Exp SC {
 					$$.have_sure_exit = true;
@@ -1362,7 +1362,7 @@ Exp	 		: LPAREN Exp RPAREN {
 			;
 MQUAD		:/*epsilon*/
 				{
-					$$.quad = st.cb.next(); // SHOULD BE QUAD NUMBER
+					$$.quad = st.cb.next(); 
 				}
 PushMark    :/*epsilon*/
                 {
