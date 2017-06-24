@@ -1,7 +1,0 @@
-void f( int const){ 
-   int y =5;
-}
-
-void main(){
- f(5);
-}
