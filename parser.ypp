@@ -581,7 +581,7 @@ public:
 %right then ELSE
 	
 %left AND
-%left OR
+%right OR
 %left RELOP
 %left BINOP
 %left NOT	
@@ -1322,6 +1322,10 @@ Exp	 		: LPAREN Exp RPAREN {
 			| NOT Exp {
 										$$.true_list = $2.false_list;
 										$$.false_list = $2.true_list;
+										$$.next_list = $2.next_list;
+										$$.break_list = $2.break_list;
+										$$.reg_list = $2.reg_list;
+										$$.prepare_call_list =  $2.prepare_call_list;
                                         $$.type = TYPE_BOOL;
                                         if ($2.type != TYPE_BOOL) {
                                         	errorMismatch(yylineno); 
