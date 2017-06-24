@@ -424,7 +424,7 @@ public:
 			else if (binop == "-")
 				cb.emit("subu	" + val1 + ", " + val2 + ", " + val3);
 			else if (binop == "*")
-				cb.emit("mulu	" + val1 + ", " + val2 + ", " + val3);
+				cb.emit("mulou	" + val1 + ", " + val2 + ", " + val3);
 			else if (binop == "/"){
 				cb.emit("divu	" + val1 + ", " + val2 + ", " + val3);
 			}
@@ -833,8 +833,18 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 					int to_bp = st.cb.emit("beq $fp, $sp, ");
 					st.cb.emit("addu	$sp, $sp, 4");
 					st.bpatch_one(to_bp, st.cb.next());
-					st.cb.emit("move $v0, " + $2.reg);
-					st.cb.emit("jr	$ra");
+					if ($2.type == TYPE_BOOL){
+						st.cb.bpatch($2.true_list,st.cb.next());
+						st.cb.emit("li $v0, 1");
+						int tmp = st.cb.emit("j ");
+						st.cb.bpatch($2.false_list, st.cb.next());
+						st.cb.emit("li $v0, 0");
+						st.bpatch_one(tmp, st.cb.next());
+						st.cb.emit("jr	$ra");
+					}else{
+						st.cb.emit("move $v0, " + $2.reg);
+						st.cb.emit("jr	$ra");
+					}
 				}
 			| IFPART1 MQUAD Statement ELSE MARK_BRK MQUAD Statement {
 							$$.have_sure_exit = ($3.have_sure_exit && $7.have_sure_exit) ? true : false;
@@ -1042,6 +1052,23 @@ Call 			: Call_begin Mark_push ExpList RPAREN {
 
 								if (func_info.params.size()) { errorPrototypeMismatch(yylineno, $1.name.c_str() , proto_names);exit(1);}
 								$$.type = st.convert_type_func_to_var( func_info.type);
+
+								for (int i = 0; i < func_info.params.size(); ++i){
+									st.cb.emit("subu	$sp, $sp, 4");
+								}
+								st.cb.emit("# clear our argument !");
+								st.cb.emit("# Set fp above sp -- now in new function frame #");
+								st.cb.emit("move $fp, $sp");
+								st.cb.emit("jal	   __" + $1.name);
+								for (int i = 0; i < func_info.params.size(); ++i){
+									st.cb.emit("addu	$sp, $sp, 4");
+								}
+								st.cb.emit("# getting the frame pointer back and return address!");
+								st.cb.emit("lw	$ra, ($sp)");
+								st.cb.emit("addu	$sp, $sp, 4");
+								st.cb.emit("lw	$fp, ($sp)");
+								st.cb.emit("addu	$sp, $sp, 4");
+								st.reg_popall($1.reg_list);
 			}
 			;
 Call_begin	:	ID LPAREN	{	
@@ -1128,13 +1155,13 @@ Exp	 		: LPAREN Exp RPAREN {
 									$$.is_true = $2.is_true;
 									$$.type = $2.type;
 									$$.value = $2.value;
-									$$.reg = $1.reg;
+									$$.reg = $2.reg;
 									$$.true_list = $2.true_list;
 									$$.next_list = $2.next_list;
 									$$.false_list = $2.false_list;
 							}
 			| Exp BINOP Exp {
-                         if ($1.is_true != UNDEFINED && $3.is_true != UNDEFINED){
+                         if ($1.is_true != UNDEFINED && $3.is_true != UNDEFINED && !($2.name == "/" && $3.value == 0)){
                          	$$.value = st.calc_binop($1.value,  $2.name, $3.value);
                            	$$.is_true = ($$.value != 0) ? T_VAL : F_VAL ;
                          }else{
@@ -1182,7 +1209,7 @@ Exp	 		: LPAREN Exp RPAREN {
 						label << -(new_info.offset + 1) * 4;
 						label << "($fp)";
                     	st.cb.emit(label.str());
-                    }else{
+                    }else if ($$.type == TYPE_BOOL){
                     	string reg = st.reg_alloc();
                     	string reg1 = st.reg_alloc();
 						std::stringstream label;
@@ -1191,6 +1218,7 @@ Exp	 		: LPAREN Exp RPAREN {
 						label << ", ";
 						label << -(new_info.offset + 1) * 4;
 						label << "($fp)";
+						st.cb.emit(label.str());
                     	st.cb.emit("li " + reg1 + ", 1");
                         int s =st.cb.emit("beq " + reg + ", " + reg1 + ", ");
                         $$.true_list = st.cb.makelist(s);
