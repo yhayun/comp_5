@@ -689,12 +689,14 @@ FormatDecl  : Type ID {$$.type = $1.type; $$.name = $2.name;}
 
 Statements		: Statement {
 								$$.next_list = $1.next_list;
+								$$.break_list = $1.break_list;
 								$$.have_sure_exit = $1.have_sure_exit;
 								st.manage_insert( $1 , false);
 
 							}
 				| Statements Statement  { 
 											$$.next_list = st.cb.merge($1.next_list, $2.next_list);
+											$$.break_list = st.cb.merge($1.break_list, $2.break_list);
 											$$.have_sure_exit = ($1.have_sure_exit || $2.have_sure_exit) ? true : false; // doing or between of them
 											st.manage_insert( $2 , false);
 
@@ -703,6 +705,7 @@ Statements		: Statement {
 
 Statement	 	: LBRACE PushMark Statements RBRACE {
 								  						  $$.next_list = $3.next_list;
+								  						  $$.break_list = $3.break_list;
 														  $$.have_sure_exit = $3.have_sure_exit;
 														  $$.insert = false;
 														  //st.pop_params();
@@ -854,13 +857,15 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 							st.manage_insert( $7 , true);
 							st.cb.bpatch($1.true_list,$2.quad );
 							st.cb.bpatch($1.false_list,$6.quad );
-							st.cb.bpatch($5.next_list, st.cb.next());
+							st.cb.bpatch($5.break_list, st.cb.next());
 							//for breaks:
 							$$.next_list = st.cb.merge($3.next_list,$7.next_list);
+							$$.break_list = st.cb.merge($3.break_list, $7.break_list);
 						}
 			| IFPART1 MQUAD Statement {	
 								$$.have_sure_exit = false;
 								$$.next_list = $3.next_list;
+								$$.break_list = $3.break_list;
 								$$.insert = false;
 								st.manage_insert($3, true);
 								st.cb.bpatch($1.true_list,$2.quad );
@@ -876,10 +881,11 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 												st.bpatch_one(st.cb.emit("j "), $1.quad);
 												string label = st.cb.next();
 												st.cb.bpatch($1.false_list, label);
-												st.cb.bpatch($3.next_list, label);
+												st.cb.bpatch($3.break_list, label);
 												st.cb.bpatch($1.false_list , $2.reg);
 												st.pop_params();
 												st.cb.emit("# End While Loop");
+												$$.next_list = $3.next_list;
 							}
 			| BREAK SC {
 						$$.insert = false;	
@@ -888,12 +894,12 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 							exit(1);
 						}
 						st.cb.emit("#break statement");
-						$$.next_list = st.cb.makelist(st.cb.emit("j "));
+						$$.break_list = st.cb.makelist(st.cb.emit("j "));
 					}
 			| SWITCH1part LBRACE CaseList RBRACE SC {
 														$$.insert = false;
 														$$.have_sure_exit = false; 
-
+														$$.next_list = $3.next_list;
 														st.cb.bpatch($3.true_list, $1.reg + ", ");
 														for(int i=0; i < $3.true_list.size() - 1; i ++){
 															std::stringstream label;
@@ -903,7 +909,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 														}
 														vector<int> v = vector<int>();
 														v.push_back($3.true_list.back());
-														st.cb.bpatch(st.cb.merge($3.next_list, v), st.cb.next());
+														st.cb.bpatch(st.cb.merge($3.break_list, v), st.cb.next());
 														st.reg_free($1.reg);
 												    }
 
@@ -919,7 +925,7 @@ IFPART1		: IF LPAREN Exp RPAREN{
 										}
 										$$.true_list = $3.true_list;
 										$$.false_list = $3.false_list;
-										$$.next_list = $3.next_list;
+										$$.break_list = $3.break_list;
 
 								}
 			;
@@ -942,7 +948,8 @@ SWITCH1part	: SWITCH LPAREN Exp RPAREN {
 											errorMismatch(yylineno);
 											exit(1);
 										}	
-										$$.reg = $3.reg;									
+										$$.reg = $3.reg;	
+										st.cb.emit("# switch statement");								
 									}
 			;
 
@@ -954,10 +961,12 @@ Mark2		:/* epsilon*/ { 	st.cb.emit("# starting While loop");
 
 CaseList	: CaseStat CaseList {
 									$$.true_list = st.cb.merge($1.true_list, $2.true_list);
-									$$.next_list = st.cb.merge($1.next_list, $2.next_list);								
+									$$.break_list = st.cb.merge($1.break_list, $2.break_list);
+									$$.next_list = st.cb.merge($1.next_list, $2.next_list);									
 								}
 			| CaseStat {
 							$$.true_list = $1.true_list;
+							$$.break_list = $1.break_list;
 							$$.next_list = $1.next_list;	
 						}
 			;
@@ -965,13 +974,14 @@ CaseList	: CaseStat CaseList {
 CaseStat	: CASE NUM COLON QUAD_CASE Statement MARK_BRK BREAK SC {
 		                                       	 		  		  		st.manage_insert( $5 , true); 
 																		$$.true_list = $4.true_list;
-																		$$.next_list = $6.next_list;
+																		$$.next_list = $5.next_list;
+																		$$.break_list = st.cb.merge($6.break_list, $5.break_list);
 																		//this quad is chainlist of case lables, need to bp in caselist.
 																		$$.quad = $4.quad;
 																		std::stringstream num_val;
 																		num_val << $2.value;
 																		//bpatch the value into to li command and free quad's reg:
-																		st.cb.bpatch($4.next_list , num_val.str());
+																		st.cb.bpatch($4.break_list , num_val.str());
 																		//bpatch the jump command:
 																		st.cb.bpatch($$.true_list ,$4.reg + ", " + $$.reg + ",");	
 																		st.reg_free($4.reg);
@@ -979,14 +989,15 @@ CaseStat	: CASE NUM COLON QUAD_CASE Statement MARK_BRK BREAK SC {
 			| CASE NUM B COLON QUAD_CASE Statement MARK_BRK BREAK SC {
 			                                                          	st.manage_insert( $6 , true);
 			                                                        	//both lists will get same backpatch to end of switch.
-																		$$.true_list = $5.true_list;
-																		$$.next_list = $7.next_list;
+																		$$.true_list = st.cb.merge($5.true_list, $4.break_list);
+																		$$.break_list = $7.break_list;
+																		$$.next_list = $6.next_list;
 																		//this quad is chainlist of case lables, need to bp in caselist.
 																		$$.quad = $5.quad;
 																		std::stringstream num_val;
 																		num_val << $2.value;
 																		//bpatch the value into to li command and free quad's reg:
-																		st.cb.bpatch($5.next_list , num_val.str());
+																		st.cb.bpatch($5.break_list , num_val.str());
 																		//bpatch the jump command:
 																		st.cb.bpatch($$.true_list ,$5.reg + ", " + $$.reg + ",");
 																		st.reg_free($5.reg);																	
@@ -998,11 +1009,11 @@ QUAD_CASE		: /*epsilon*/{
 								$$.reg = st.reg_alloc();
                     			std::stringstream label;
 								label << "li	" << $$.reg << ", "; 
-								$$.next_list = st.cb.makelist(st.cb.emit(label.str()));
+								$$.break_list = st.cb.makelist(st.cb.emit(label.str()));
 								$$.true_list = st.cb.makelist(st.cb.emit("bne	"));
 						 }
 MARK_BRK		:/*epsilon*/{
-								 $$.next_list = st.cb.makelist(st.cb.emit("j "));
+								 $$.break_list = st.cb.makelist(st.cb.emit("j "));
 						}
 
 Call 			: Call_begin Mark_push ExpList RPAREN {
@@ -1168,7 +1179,7 @@ Exp	 		: LPAREN Exp RPAREN {
 									$$.value = $2.value;
 									$$.reg = $2.reg;
 									$$.true_list = $2.true_list;
-									$$.next_list = $2.next_list;
+									$$.break_list = $2.break_list;
 									$$.false_list = $2.false_list;
 							}
 			| Exp BINOP Exp {
