@@ -1,0 +1,1514 @@
+%{
+#define YYDEBUG 1
+#define YYERROR_VERBOSE 1
+#define NUM_REGS 18
+#include "attributes.h"
+#include "output.hpp"
+#include "bp.hpp"
+#include <iostream>
+#include <stdlib.h>
+#include <stack>
+#include <vector>
+#include <string.h>
+#include <stdio.h>
+#include <algorithm>
+#include <sstream>
+using namespace std;	
+using namespace output;
+extern int yylex();
+extern int yylineno;
+extern char* yytext;
+
+//DONT PUT ANY NON FUNCTION TYPES BELOW BYTE!!!!!	
+	enum ttypes{
+//EVERY TIME YOU TOUCH SOMETHING HERE U NEED TO CHANGE STUFF LIKE INT TO NAME
+//JOHN IF U WANT TO CHANGE SOMETHING DON TDO IT WITH ASKING ME 
+	 	TYPE_INT,
+		TYPE_BOOL,
+		TYPE_BYTE,
+		TYPE_STRING,
+		TYPE_FUNC_INT,
+		TYPE_FUNC_BOOL,
+		TYPE_FUNC_BYTE,
+		TYPE_FUNC_VOID,
+		TYPE_MAX
+	};
+
+//****************************************************************************************************
+//                                   symblo table implementation:
+//****************************************************************************************************
+void int_to_name_push(int i, vector<const char*>& proto_names);
+class info {
+public:	
+	string name;
+	int offset;
+	bool is_func;
+	int type;
+	vector<int> params;
+
+//Methods:	
+	info(string xname, int xoffset, int xtype){
+		is_func = false;
+		name = string(xname);
+		offset = xoffset;
+		type = xtype; 
+		params = vector<int>();
+	}
+
+	/**
+	 * compares this info with another
+	 * @param  x [another info]
+	 * @return   [bool]
+	 */
+	bool compare(info& x){
+		if (name == x.name && is_func == x.is_func)
+		return true;
+	return false;
+	}
+
+	/**
+	 * Compares between infos - returns true if equal.
+	 * @param  a [left info]
+	 * @param  b [right info]
+	 * @return   [bool]
+	 */
+	bool info_compare(info& a, info& b){
+		if (a.name == b.name && a.is_func == b.is_func)
+			return true;
+		return false;
+	}
+};
+
+
+
+
+
+
+
+
+class glob_data {
+    //symbol table main stack:
+    vector<vector<info> > symb_stack;
+    //track the offset of vars in the symbol stack global:
+    stack<int> offset_stack;
+public:
+    //stores the current function declartions vars:
+    //to keep track of the return type of function:
+    int func_return;
+    //Counts how many while loops so far:
+    int is_while;
+    //bad way(didn't find another) to handle a corner case: random ID string cause program -> to fail without proper error;
+    bool big_scope_flag;
+    vector<bool> reg_pool;
+    CodeBuffer& cb;
+//Methods:
+    void emit_print(){
+    	cb.emit("__print:");
+    	cb.emit("li	$v0, 4");
+    	cb.emit("syscall");
+    	cb.emit("jr	$ra");
+    	cb.emit(".end __print");
+    }
+    void emit_printI(){
+      	cb.emit("__printi:");
+      	cb.emit("lw $a0, 0($sp)");
+    	cb.emit("li	$v0, 1");
+    	cb.emit("syscall");
+    	cb.emit("jr	$ra");
+		cb.emit(".end __printi");
+    }
+	glob_data( CodeBuffer& glob_cb ) : cb(glob_cb) {
+		big_scope_flag = false;
+		is_while = 0;
+		func_return = -1;
+		symb_stack = vector<vector<info> >();
+		symb_stack.push_back(vector<info>());
+		offset_stack.push(0);
+		info print_info("print",0,TYPE_FUNC_VOID);
+		info printI_info("printi",0,TYPE_FUNC_VOID);
+		print_info.is_func = 1;
+		print_info.params.push_back(TYPE_STRING);
+		printI_info.is_func = 1;
+		printI_info.params.push_back(TYPE_INT);
+		symb_stack.back().push_back(print_info);
+		symb_stack.back().push_back(printI_info);
+		emit_print();
+		emit_printI();
+		cb.emitData("div_zero_label: .asciiz \"Error division by zero\n\"");
+		for (int i = 0; i < NUM_REGS; ++i)
+			reg_pool.push_back(false);
+	}
+	const char* int_to_name(int i){
+      		if (i == TYPE_BYTE) return "BYTE";
+        	if (i == TYPE_INT)  return "INT";
+        	if (i == TYPE_BOOL) return "BOOL";
+        	if (i == TYPE_STRING)  return "STRING";
+                if (i == TYPE_FUNC_BYTE) return "BYTE";
+                if (i == TYPE_FUNC_INT)  return "INT";
+                if (i == TYPE_FUNC_BOOL) return "BOOL";
+		if (i == TYPE_FUNC_VOID) return "VOID";
+		return "";
+	}
+	int type_to_ret_type(int i){
+                if (i == TYPE_INT) return TYPE_FUNC_INT;
+                if (i == TYPE_BOOL) return TYPE_FUNC_BOOL;
+                if (i == TYPE_BYTE) return TYPE_FUNC_BYTE;
+                return -1;
+	}
+	/**
+	 * push a new scope to global symbol table.
+	 */
+	void push_table(){
+		vector<info> new_stack = vector<info>();
+		symb_stack.push_back(new_stack);
+		offset_stack.push(offset_stack.top());
+	}
+
+	/**
+	 * removes the current scope and prints its content.
+	 */
+	void pop_table(){
+		//NOT COMPLETE:
+		//endScope();
+		pop_params();
+		for (vector<info>::iterator it = symb_stack.back().begin(); it !=symb_stack.back().end(); ++it){
+			if ((*it).is_func == 0){
+				 //printID((*it).name.c_str(), (*it).offset, int_to_name((*it).type));
+			}else{
+				if ((*it).name == "print" || (*it).name == "printi") continue;
+                                vector<const char*> proto_names = vector<const char*>();
+                                for (vector<int>::iterator it1 = (*it).params.begin();it1 != (*it).params.end();++it1){
+                                      int_to_name_push(*it1, proto_names);
+				}
+				//cout<<(*it).name<<" "<<makeFunctionType(int_to_name((*it).type), proto_names)<<" "<<(*it).offset<<endl;
+				
+			}
+		}
+		symb_stack.pop_back();	
+
+		offset_stack.pop();
+	}
+
+	void pop_params(){
+				std::stringstream cmd;
+				cmd << "subu $sp, $fp, ";
+				cmd << (offset_stack.top()) * 4;
+				cb.emit(cmd.str() + " # fix sp");
+	}
+
+	/**
+	 * Pushes info into current scope for normal vars
+	 * @param x [info]
+	 */
+	void add_symbol( info& x ){
+		symb_stack.back().push_back(x);
+		offset_stack.top()++;
+	}
+
+	/**
+	 * Pushes info into current scope for FUNCTION vars
+	 * @param x [info]
+	 */
+	void add_symbol_func( info x){
+		symb_stack.back().push_back(x);
+	}
+
+	/**
+	 * finds info inside a vector and stores it in 'store_found' if found :: used by find_in_table.
+	 * @param  v           [vector]
+	 * @param  x           [info]
+	 * @param  store_found [res info placement]
+	 * @return             [bool]
+	 */
+	bool vector_contains (vector<info>& v, info& x, info& store_found){
+		vector<info>::iterator it;
+		for (it = v.begin(); it != v.end(); it++){
+			if (x.compare(*it)){
+				store_found = (*it);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * looks for a symbol with given name in global symbol table.
+	 * @param  name    [ifo's name]
+	 * @param  value   [placement to store info]
+	 * @param  is_func [boolean - search for function if true, else var]
+	 * @return         [info.type or -1 if not found]
+	 */
+	int find_in_table (string name, info& value, bool is_func)
+	{
+	  vector<vector<info> >::reverse_iterator rit;
+	  for( rit = symb_stack.rbegin(); rit != symb_stack.rend(); ++rit)
+		{
+			info temp(name, 0, 0);
+			temp.is_func = is_func;
+			if (vector_contains((*rit), temp, value)){
+				return value.type;
+			}
+		}
+	  return -1;
+	}
+
+	int get_var_offset(string name){
+		info new_info("dummy", 0, 0);
+		int res = find_in_table(name, new_info, false);
+		if((res < 0)){
+			cout<<"Assertion failed !!! res != 0 "<< endl;
+			exit(1);
+		}
+		return new_info.offset;
+	}
+
+	/**
+	 * finds var with given name.
+	 * @param  name  [info's name]
+	 * @param  value [placement to store info]
+	 * @return       [info.type or -1 if not found]
+	 */
+	int find_var (string name, info& value){
+		//range of vars in the global enum.
+		return find_in_table(name, value, false);
+	}
+
+	/**
+	 *  finds function with given name.
+	 * @param  name  [info's name]
+	 * @param  value [placement to store info]
+	 * @return       [info.type or -1 if not found]
+	 */
+	int find_func (string name, info& value){
+		//range of functions in the global enum.
+		return find_in_table(name, value, true);
+	}
+
+	/**
+	 *  check if function with given name exists.
+	 * @param  name  [info's name]
+	 * @return       [info.type or -1 if not found]
+	 */
+	int has_func(string name){
+		info value("dummy", 0, 0);
+		//range of functions in the global enum.
+		return find_in_table(name, value, true);
+	}
+
+	/**
+	 * check if var with given name exists.
+	 * @param  name  [info's name]
+	 * @return       [info.type or -1 if not found]
+	 */
+	int has_var(string name){
+		info value("dummy", 0, 0);
+		//range of vars in the global enum.
+		return find_in_table(name, value, false);
+	}
+
+	/**
+	 * handles 'Statement' insertion to symbol table.
+	 * @param x         [Statement's STYPE]
+	 * @param new_scope [bool]
+	 */
+	void manage_insert( STYPE& x , bool new_scope){
+		if (x.insert == false)
+			return;	
+		x.insert = false;
+
+		info new_info(x.name, offset_stack.top(), x.type);
+
+		if (new_scope){
+			//single var in scope:
+			push_table();
+			add_symbol(new_info);
+			pop_table();
+			return;
+		}
+		//push into current table:
+		add_symbol(new_info);
+		//cb.emit("subu $sp, $sp ,4");
+		return;
+	}
+	bool is_same_list(vector<int>& v1, vector<int>& v2){
+             vector<int>::iterator it1 = (v1).begin();
+             vector<int>::iterator it2 = v2.begin();
+             for(;   it1 != v1.end() || it2 != v2.end(); ++it1, ++it2) {
+             if (*it1 != *it2 && !(*it2 == TYPE_BYTE && *it1 == TYPE_INT))
+            	 {
+			return false;
+             	 }
+             }
+             if (it1 != v1.end() || it2 != v2.end())
+             {
+		return false;
+             }
+	     return true;
+	}
+	void add_func_symbol_to_table(vector<pair<string,int> >& symb_vec){
+                vector<pair<string,int> >::iterator it;
+                int i = -1;
+                for( it = symb_vec.begin(); it != symb_vec.end(); ++it){
+                         info new_info = info((*it).first, i--,(*it).second);
+                         add_symbol_func(new_info);
+                }
+	}
+
+	int get_curr_table_size(){
+		return symb_stack.back().size();
+	}
+	/**
+	 * Compare values with the operand in the relop string
+	 * @param  val1  [left operand]
+	 * @param  relop [comparsion string]
+	 * @param  val2  [right operand]
+	 * @return       [bool result]
+	 */
+	bool check_relop(int val1, string relop, int val2){
+			if (relop == "==")
+				return val1 == val2;
+			else if (relop == "!=")
+				return val1 != val2;
+			else if (relop == "<")
+				return val1 < val2;
+			else if (relop == ">")
+				return val1 > val2;	
+			else if (relop == "<=")
+				return val1 <= val2;
+			else if (relop == ">=")
+				return val1 >= val2;	
+			else{
+				cout << "ERROR  <>---- RELOP COMMAND NOT FOUND ---- <>  ERROR";	
+				exit(1);	
+			}
+	}
+
+	string relop_to_string(string r){
+			if ( r == "==" ) return "beq";
+			if ( r == "!=" ) return "bne";
+			if ( r == "<" )	 return "blt";
+			if ( r == ">" )	 return "bgt";
+			if ( r == ">=" ) return "bge";
+			if ( r == "<=" ) return "ble";
+			cout<< "invalid relop what the shit: " << endl;
+			exit(1);
+	}
+
+	/**
+	 * cacluates the binop result if the operands are constant numbers.
+	 * @param  val1  [left operand]
+	 * @param  binop [operand string]
+	 * @param  val2  [right operand]
+	 * @return       [operation value]
+	 */
+	int calc_binop(int val1, string binop, int val2){ 
+			if (binop == "+")
+				return val1 + val2;
+			else if (binop == "-")
+				return val1 - val2;
+			else if (binop == "*")
+				return val1 * val2;
+			else if (binop == "/")
+				return val1 / val2;		
+			else{
+				cout << "ERROR  <>---- BINOP NOT FOUND ---- <>  ERROR";	
+				exit(1);	
+			}
+	}	
+
+	void emit_calc(string val1, string binop, string val2, string val3){ 
+			if (binop == "+")
+				cb.emit("addu	" + val1 + ", " + val2 + ", " + val3);
+			else if (binop == "-")
+				cb.emit("subu	" + val1 + ", " + val2 + ", " + val3);
+			else if (binop == "*")
+				cb.emit("mulou	" + val1 + ", " + val2 + ", " + val3);
+			else if (binop == "/"){
+				cb.emit("divu	" + val1 + ", " + val2 + ", " + val3);
+			}
+			else{
+				cout << "ERROR  <>---- BINOP NOT FOUND ---- <>  ERROR";	
+				exit(1);	
+			}
+	}	
+	int convert_type_func_to_var( int func_type){
+		//This is a quick fix. that relys on the distance between
+		//functions types and var types inside the enum.
+		//might needed to be repaired later.
+		return func_type -4;
+	}
+
+	void check_for_main(){
+		info func_info("dummy", -1, -1);
+		if (find_func("main",func_info) < 0 || func_info.type != TYPE_FUNC_VOID || func_info.params.size() ){
+			errorMainMissing(); 
+			exit(1);
+		}
+	}
+
+	string reg_alloc(){
+		for (int i = 0; i < reg_pool.size(); ++i)
+			if (!reg_pool[i]){
+				reg_pool[i] = true;
+				int reg_num = i+8;
+				std::stringstream reg;
+				reg << "$";
+				reg << reg_num;
+				return reg.str();
+			}
+		cout << "unable to alloc another reg !" << endl;
+		exit(1);
+		return "";
+	}
+
+	void reg_free(string reg){
+		if (reg.size() == 0)
+			return ;
+		reg.erase(0,1);
+		reg_pool[std::atoi(reg.c_str()) - 8] = false;
+	}
+
+	void reg_push(string reg){
+		cb.emit("subu $sp, $sp ,4");
+		cb.emit("sw	" + reg + ", ($sp)");
+	}
+
+	vector<int> reg_pushall(){
+		vector<int> new_vec = vector<int>();
+		cb.emit("#Push all regs : begining.");
+		cb.emit("#**************************");	
+		cb.emit("");
+		for (int i = 0; i < reg_pool.size(); ++i){
+			if (reg_pool[i]){
+				std::stringstream label;
+				label << "$";
+				label << (i + 8);
+				reg_push(label.str());
+				new_vec.push_back(i);
+				reg_pool[i] = 0;
+			}
+		}
+		cb.emit("");
+		cb.emit("#Push all regs : end.");
+		cb.emit("#**************************");	
+		return new_vec;
+
+	}
+
+	void reg_pop(string reg){
+		cb.emit("lw	" + reg + ", ($sp)");
+		cb.emit("addu	$sp, $sp, 4");
+	}
+
+	void reg_popall(vector<int> v){
+		cb.emit("#Pop all regs : begining.");
+		cb.emit("#**************************");	
+		cb.emit("");
+		for (int i = v.size() - 1; i >= 0; --i){
+			std::stringstream label;
+			label << "$";
+			label << (v[i] + 8);
+			reg_pop(label.str());
+			reg_pool[v[i]] = 1;
+		}
+		cb.emit("");
+		cb.emit("#Pop all regs : end.");
+		cb.emit("#**************************");	
+	}
+
+	/**
+	 * save all regs, fp reg, ra reg - before calling to a function, we will then use call_set_args().
+	 *  this fucntion is called inside mark_push.
+	 */
+	vector<int> function_call(){
+		cb.emit("# Function Call #");
+		vector<int> v = reg_pushall();
+		reg_push("$fp");
+		reg_push("$ra");
+		return v;
+	}
+
+	void bpatch_one(int i, string s){
+		vector<int> v = vector<int>();
+		v.push_back(i);
+		cb.bpatch(v,s);
+	}
+};
+
+
+//****************************************************************************************************
+//                                   Other functions:
+//****************************************************************************************************
+	int yyerror(char const * message);
+	void int_to_name_push(int i, vector<const char*>& proto_names);
+
+//****************************************************************************************************
+//                                   Globals:
+//****************************************************************************************************
+	CodeBuffer& cb = CodeBuffer::instance();
+	glob_data st(cb);
+
+
+
+%}
+%token VOID
+%token INT
+%token BYTE
+%token B
+%token BOOL
+%token TRUE
+%token FALSE
+%token RETURN
+%token IF
+%token NUM
+%token WHILE
+%token SWITCH
+%token CASE
+%token BREAK
+%token COLON
+%token SC
+%token COMMA
+%token LPAREN
+%token RPAREN
+%token LBRACE
+%token RBRACE
+%token ASSIGN
+%token ID
+%token STRING
+%token whitespace
+%token comment
+%right then ELSE
+	
+%left OR
+%left AND
+%left RELOP
+
+%right BINOPADD
+%right BINOPMIN
+%right BINOPDIV
+%right BINOPMUL
+
+
+%left NOT
+
+%%
+
+
+Program 	: Funcs {
+					//st.check_for_main();
+                    if (st.big_scope_flag) st.pop_table();
+                    st.cb.printDataBuffer();
+                    st.cb.printCodeBuffer();
+				}
+			;
+
+Funcs 		:	FuncDecl Funcs {
+	                         st.check_for_main();
+                             st.big_scope_flag = true;
+							}
+                        | /* epsilon*/ {
+                                        //check if file is empty - error is missing main;
+                                        if(strlen(yytext) == 0 ){
+                                                st.check_for_main();
+                                        }
+                                }
+                        ;
+
+FuncDecl     : FuncDecl1 LBRACE Statements RBRACE{	
+													    if (!$3.have_sure_exit && st.func_return != TYPE_FUNC_VOID){
+													     	errorNotAllPaths(yylineno, $$.name.c_str()); 
+													     	exit(1);
+													    }
+													    //Quad for end of function:
+													    $$.quad = st.cb.next(); 
+													    st.cb.bpatch($3.next_list, $$.quad);
+													    if (st.func_return == TYPE_FUNC_VOID && $1.name != "main"){
+															st.cb.emit("# here we can make sure we CLEAR the stack");
+															st.cb.emit("move	$fp, $sp");
+															st.cb.emit("jr	$ra");
+												        }
+													 	st.func_return = -1;
+													 	if ($1.name == "main"){
+													 		st.cb.emit("li  $v0,  10 # call to end prog");
+															st.cb.emit("syscall"); 
+									                    	st.cb.emit(".end " + $1.name);
+									                    	//st.pop_table();
+													 	}else{
+													 		st.pop_table();
+													 		st.cb.emit(".end __" + $1.name);
+													 	}
+										         }
+               ;
+
+FuncDecl1		: RetType ID LPAREN Formals RPAREN {  
+                    // first we check if the func we just declared is already declared ?
+                    if (st.has_func($2.name) >= 0){
+                    	errorDef(yylineno, $2.name.c_str()); 
+                    	exit(1);
+                    }
+                    info new_info($2.name, 0, $1.type);
+                    new_info.is_func = 1;
+                    for (vector<pair<string,int> >::iterator it = $4.formal_list.begin(); it != $4.formal_list.end(); ++it){
+                        new_info.params.push_back((*it).second);
+                    }
+                    st.add_symbol_func(new_info);
+                    st.push_table();
+                    st.add_func_symbol_to_table($4.formal_list);	
+                    $$.name = $2.name;
+                    if ($2.name == "main"){
+                    	st.cb.emit(".globl main");
+                    	st.cb.emit("main:");
+                    	st.cb.emit("move $fp, $sp");
+                    }else{
+                    	st.cb.emit("__" + $2.name +":" );
+                    }
+				}
+			;
+
+RetType 		: Type {
+					int t = -1;
+					if ($1.type == TYPE_INT) t = TYPE_FUNC_INT;
+					if ($1.type == TYPE_BOOL) t = TYPE_FUNC_BOOL;
+					if ($1.type == TYPE_BYTE) t = TYPE_FUNC_BYTE;
+					st.func_return = t;
+					$$.type = t;
+			     }
+			| VOID {st.func_return = (TYPE_FUNC_VOID) ; $$.type = TYPE_FUNC_VOID;}
+			;
+
+Formals		 	: /*epsilon*/ {$$.formal_list = vector<pair<string,int> >();}
+			| FormalsList {$$.formal_list = $1.formal_list;}
+			;
+
+FormalsList 		: FormatDecl {
+										$$.formal_list.insert($$.formal_list.begin()  ,make_pair($1.name ,$1.type));
+								 }
+					| FormatDecl COMMA FormalsList {
+														$$.formal_list = $3.formal_list; 
+														$$.formal_list.insert($$.formal_list.begin(), make_pair($1.name,$1.type));
+										    		}
+			;
+
+FormatDecl  : Type ID {$$.type = $1.type; $$.name = $2.name;}
+			;
+
+Statements		: Statement {
+								$$.next_list = $1.next_list;
+								$$.break_list = $1.break_list;
+								$$.have_sure_exit = $1.have_sure_exit;
+								st.manage_insert( $1 , false);
+
+							}
+				| Statements Statement  { 
+											$$.next_list = st.cb.merge($1.next_list, $2.next_list);
+											$$.break_list = st.cb.merge($1.break_list, $2.break_list);
+											$$.have_sure_exit = ($1.have_sure_exit || $2.have_sure_exit) ? true : false; // doing or between of them
+											st.manage_insert( $2 , false);
+
+									}
+			;
+
+Statement	 	: LBRACE PushMark Statements RBRACE {
+								  						  $$.next_list = $3.next_list;
+								  						  $$.break_list = $3.break_list;
+														  $$.have_sure_exit = $3.have_sure_exit;
+														  $$.insert = false;
+														  //st.pop_params();
+														  st.pop_table();
+							    }
+				| Type ID SC {
+								if (st.has_func($2.name) >= 0|| st.has_var($2.name) >= 0) {
+									errorDef(yylineno, $2.name.c_str()); 
+									exit(1);
+								}
+						     	$$.type = $1.type;
+								$$.name = $2.name;
+								$$.insert = true;
+								$$.have_sure_exit = false;
+								st.cb.emit("subu $sp, $sp, 4 # inserting var = " + $2.name);
+							  }
+				| Type ID ASSIGN Exp SC {
+					if (st.has_func($2.name) >= 0|| st.has_var($2.name) >= 0) {
+						errorDef(yylineno, $2.name.c_str()); 
+						exit(1);
+					}
+					if ($1.type != $4.type && !($4.type == TYPE_BYTE && $1.type == TYPE_INT)) { 
+						errorMismatch(yylineno); 
+						exit(1);
+					}
+					if ($1.type == TYPE_BYTE && $4.value > 255){
+							std::stringstream ass;
+							ass << $4.value;
+							errorByteTooLarge(yylineno, ass.str().c_str());
+						exit(1);
+					}
+					if ( $1.type == TYPE_BYTE && $4.type == TYPE_INT){
+						errorMismatch(yylineno); 
+						exit(1);
+					}
+                    $$.type = $1.type;
+                    $$.name = $2.name;
+                    $$.insert = true;
+					$$.have_sure_exit = false;
+					if ($1.type != TYPE_BOOL){
+						st.cb.emit("# inserting var = " + $$.name);
+						st.reg_push($4.reg);
+					}else{
+						string true_label = st.cb.next();
+						string reg = st.reg_alloc();
+						st.cb.emit("subu	$sp, $sp, 4");
+						st.cb.emit("li	" + reg + ", 1");
+						st.cb.emit("sw	" + reg + ", ($sp)");
+						int temp = st.cb.emit("j ");
+						string false_label = st.cb.next();
+						st.cb.emit("subu	$sp, $sp, 4");
+						st.cb.emit("li	" + reg + ", 0");
+						st.cb.emit("sw	" + reg + ", ($sp)");
+						st.reg_free(reg);
+						string next_label = st.cb.next();
+						st.bpatch_one(temp, next_label);
+						st.cb.bpatch($4.true_list, true_label);
+						st.cb.bpatch($4.false_list, false_label);
+					}
+				}
+			| ID ASSIGN Exp SC {
+						$$.insert = false;
+						int res = -1;
+						if ((res = st.has_var($1.name)) < 0){ 
+							errorUndef(yylineno, $1.name.c_str()); 
+							exit(1);
+						}
+						if (res != $3.type && !(res == TYPE_INT && $3.type == TYPE_BYTE)){
+							errorMismatch(yylineno); 
+							exit(1);
+						}
+						if (res == TYPE_BYTE && $3.value > 255){
+							std::stringstream ass;
+							ass << $3.value;
+							errorByteTooLarge(yylineno, ass.str().c_str()); 
+							exit(1);
+						}
+						if ( $1.type == TYPE_BYTE && $4.type == TYPE_INT){
+							errorMismatch(yylineno); 
+							exit(1);
+						}
+						if ($3.type != TYPE_BOOL){
+							$$.have_sure_exit = false;
+							std::stringstream ass;
+							ass << -((st.get_var_offset($1.name) + 1)  * 4);
+							ass << "($fp)";
+							st.cb.emit("sw	" + $3.reg + ", " + ass.str());
+						}else{ // DO BOOLBOOL
+							string true_label = st.cb.next();
+							string reg = st.reg_alloc();
+							st.cb.emit("subu	$sp, $sp, 4");
+							st.cb.emit("li	" + reg + ", 1");
+							st.cb.emit("sw	" + reg + ", ($sp)");
+							int temp = st.cb.emit("j ");
+							string false_label = st.cb.next();
+							st.cb.emit("subu	$sp, $sp, 4");
+							st.cb.emit("li	" + reg + ", 0");
+							st.cb.emit("sw	" + reg + ", ($sp)");
+							st.reg_free(reg);
+							string next_label = st.cb.next();
+							st.bpatch_one(temp, next_label);
+							st.cb.bpatch($3.true_list, true_label);
+							st.cb.bpatch($3.false_list, false_label);
+						}
+					}
+			| Call SC {
+					$$.insert = false;
+					$$.have_sure_exit = false;
+				  }
+			| RETURN SC {
+					$$.have_sure_exit = true;
+					$$.insert = false;
+					if (st.func_return != TYPE_FUNC_VOID){
+						errorMismatch(yylineno);
+						exit(1);
+					}
+					st.cb.emit("# return from function: jumps to end");
+					$$.next_list = st.cb.makelist(st.cb.emit("j "));
+				}
+			| RETURN Exp SC {
+					$$.have_sure_exit = true;
+					$$.insert = false;
+					if (st.func_return != st.type_to_ret_type($2.type) && !(st.func_return == TYPE_FUNC_INT && $2.type == TYPE_BYTE)) {
+						errorMismatch(yylineno);
+						exit(1);
+					}
+					if (st.func_return == TYPE_FUNC_BYTE && $2.value > 255){
+						errorByteTooLarge(yylineno, $2.name.c_str()); 
+						exit(1);
+					};
+					st.cb.emit("# here we can make sure we CLEAR the stack");
+					int to_bp = st.cb.emit("beq $fp, $sp, ");
+					st.cb.emit("addu	$sp, $sp, 4");
+					st.bpatch_one(to_bp, st.cb.next());
+					if ($2.type == TYPE_BOOL){
+						st.cb.bpatch($2.true_list,st.cb.next());
+						st.cb.emit("li $v0, 1");
+						int tmp = st.cb.emit("j ");
+						st.cb.bpatch($2.false_list, st.cb.next());
+						st.cb.emit("li $v0, 0");
+						st.bpatch_one(tmp, st.cb.next());
+						st.cb.emit("move $sp, $fp");
+						st.cb.emit("jr	$ra");
+					}else{
+						st.cb.emit("move $v0, " + $2.reg);
+						st.cb.emit("jr	$ra");
+					}
+				}
+			| IFPART1 MQUAD Statement ELSE MARK_BRK MQUAD Statement {
+							$$.have_sure_exit = ($3.have_sure_exit && $7.have_sure_exit) ? true : false;
+							$$.insert = false;
+							st.manage_insert( $3 , true);
+							st.manage_insert( $7 , true);
+							st.cb.bpatch($1.true_list,$2.quad );
+							st.cb.bpatch($1.false_list,$6.quad );
+							st.cb.bpatch($5.break_list, st.cb.next());
+							//for breaks:
+							$$.next_list = st.cb.merge($3.next_list,$7.next_list);
+							$$.break_list = st.cb.merge($3.break_list, $7.break_list);
+						}
+			| IFPART1 MQUAD Statement {	
+								$$.have_sure_exit = false;
+								$$.next_list = $3.next_list;
+								$$.break_list = $3.break_list;
+								$$.insert = false;
+								st.manage_insert($3, true);
+								st.cb.bpatch($1.true_list,$2.quad );
+								st.cb.bpatch($1.false_list, st.cb.next());
+					 		 }    %prec then
+
+			| WHILEPART1 MQUAD Statement {
+												$$.insert = false;
+												st.manage_insert( $3 , true);
+												st.is_while--;
+												$$.have_sure_exit = false;
+												st.cb.bpatch($1.true_list, $2.quad);
+												st.bpatch_one(st.cb.emit("j "), $1.quad);
+												string label = st.cb.next();
+												st.cb.bpatch($1.false_list, label);
+												st.cb.bpatch($3.break_list, label);
+												st.cb.bpatch($1.false_list , $2.reg);
+												st.pop_params();
+												st.cb.emit("# End While Loop");
+												$$.next_list = $3.next_list;
+							}
+			| BREAK SC {
+						$$.insert = false;	
+						if (!st.is_while) {
+							errorUnexpectedBreak(yylineno); 
+							exit(1);
+						}
+						st.cb.emit("#break statement");
+						$$.break_list = st.cb.makelist(st.cb.emit("j "));
+					}
+			| SWITCH1part LBRACE CaseList RBRACE SC {
+														$$.insert = false;
+														$$.have_sure_exit = false; 
+														$$.next_list = $3.next_list;
+														st.cb.bpatch($3.true_list, $1.reg + ", ");
+														for(int i=0; i < $3.true_list.size() - 1; i ++){
+															std::stringstream label;
+															label << "label_";
+															label << $3.true_list[i + 1] - 2;
+															st.bpatch_one($3.true_list[i], label.str());
+														}
+														vector<int> v = vector<int>();
+														v.push_back($3.true_list.back());
+														st.cb.bpatch(st.cb.merge($3.break_list, v), st.cb.next());
+														st.reg_free($1.reg);
+												    }
+
+			;
+IFPART1		: IF LPAREN Exp RPAREN{
+										if ($3.type != TYPE_BOOL){
+											errorMismatch(yylineno);
+											exit(1);
+										}
+										if ($3.is_true == F_VAL){
+											errorDeadCode(yylineno); 
+											exit(1);
+										}
+										$$.true_list = $3.true_list;
+										$$.false_list = $3.false_list;
+										$$.break_list = $3.break_list;
+
+								}
+			;
+WHILEPART1	:	WHILE Mark2 LPAREN Exp RPAREN{
+												if ($4.type != TYPE_BOOL){
+													errorMismatch(yylineno);
+													exit(1);
+												}
+												if ($4.is_true == F_VAL){
+													errorDeadCode(yylineno);
+													exit(1);
+												}
+												$$.true_list = $4.true_list;
+												$$.false_list = $4.false_list;	
+												$$.quad = $2.quad;											
+											}
+			;
+SWITCH1part	: SWITCH LPAREN Exp RPAREN {
+										if($3.type != TYPE_BYTE && $3.type != TYPE_INT){
+											errorMismatch(yylineno);
+											exit(1);
+										}	
+										$$.reg = $3.reg;	
+										st.cb.emit("# switch statement");								
+									}
+			;
+
+Mark2		:/* epsilon*/ { 	st.cb.emit("# starting While loop");
+								st.is_while++;
+ 								$$.quad = st.cb.next(); // SHOULD BE QUAD NUMBER
+						  }
+			;
+
+CaseList	: CaseStat CaseList {
+									$$.true_list = st.cb.merge($1.true_list, $2.true_list);
+									$$.break_list = st.cb.merge($1.break_list, $2.break_list);
+									$$.next_list = st.cb.merge($1.next_list, $2.next_list);									
+								}
+			| CaseStat {
+							$$.true_list = $1.true_list;
+							$$.break_list = $1.break_list;
+							$$.next_list = $1.next_list;	
+						}
+			;
+
+CaseStat	: CASE NUM COLON QUAD_CASE Statement MARK_BRK BREAK SC {
+		                                       	 		  		  		st.manage_insert( $5 , true); 
+																		$$.true_list = $4.true_list;
+																		$$.next_list = $5.next_list;
+																		$$.break_list = st.cb.merge($6.break_list, $5.break_list);
+																		//this quad is chainlist of case lables, need to bp in caselist.
+																		$$.quad = $4.quad;
+																		std::stringstream num_val;
+																		num_val << $2.value;
+																		//bpatch the value into to li command and free quad's reg:
+																		st.cb.bpatch($4.break_list , num_val.str());
+																		//bpatch the jump command:
+																		st.cb.bpatch($$.true_list ,$4.reg + ", " + $$.reg + ",");	
+																		st.reg_free($4.reg);
+														 		 }
+			| CASE NUM B COLON QUAD_CASE Statement MARK_BRK BREAK SC {
+			                                                          	st.manage_insert( $6 , true);
+			                                                        	//both lists will get same backpatch to end of switch.
+																		$$.true_list = st.cb.merge($5.true_list, $4.break_list);
+																		$$.break_list = $7.break_list;
+																		$$.next_list = $6.next_list;
+																		//this quad is chainlist of case lables, need to bp in caselist.
+																		$$.quad = $5.quad;
+																		std::stringstream num_val;
+																		num_val << $2.value;
+																		//bpatch the value into to li command and free quad's reg:
+																		st.cb.bpatch($5.break_list , num_val.str());
+																		//bpatch the jump command:
+																		st.cb.bpatch($$.true_list ,$5.reg + ", " + $$.reg + ",");
+																		st.reg_free($5.reg);																	
+												  				}
+			;
+
+QUAD_CASE		: /*epsilon*/{
+								$$.quad = st.cb.next();
+								$$.reg = st.reg_alloc();
+                    			std::stringstream label;
+								label << "li	" << $$.reg << ", "; 
+								$$.break_list = st.cb.makelist(st.cb.emit(label.str()));
+								$$.true_list = st.cb.makelist(st.cb.emit("bne	"));
+						 }
+MARK_BRK		:/*epsilon*/{
+								 $$.break_list = st.cb.makelist(st.cb.emit("j "));
+						}
+
+Call 			: Call_begin Mark_push ExpList RPAREN {
+						//first we check that the function is defined
+								info func_info("dummy", -1, -1);
+								if (st.find_func($1.name,func_info) < 0){
+									errorUndefFunc(yylineno, $1.name.c_str()); 
+									exit(1);
+								}
+								vector<const char*> proto_names = vector<const char*>();
+								for (vector<int>::iterator it1 = (func_info.params).begin();it1 != func_info.params.end();++it1){
+									int_to_name_push(*it1, proto_names);
+								}
+								if (!st.is_same_list(func_info.params, $3.exp_list)){
+									errorPrototypeMismatch(yylineno, $1.name.c_str(), proto_names);
+									exit(1);
+								}
+								$$.type = st.convert_type_func_to_var( func_info.type);
+								if ($1.name != "print")
+									for (int i = 0; i < $3.prepare_call_list.size(); ++i){
+										    std::stringstream label;
+										    label << i*4;
+										    label << "($sp)";
+										    for (int j = 0; j < $3.prepare_call_list[i].size() ; ++j)
+										    	st.bpatch_one($3.prepare_call_list[i][j], label.str());
+									}/*
+								for (int i = 0; i < func_info.params.size(); ++i){
+									st.cb.emit("subu	$sp, $sp, 4");
+								}*/
+								st.cb.emit("# clear our argument !");
+								st.cb.emit("# Set fp above sp -- now in new function frame #");
+								st.cb.emit("move $fp, $sp");
+								st.cb.emit("jal	   __" + $1.name);
+								if ($1.name != "print")
+									for (int i = 0; i < func_info.params.size(); ++i){
+										st.cb.emit("addu	$sp, $sp, 4");
+									}
+								st.cb.emit("# getting the frame pointer back and return address!");
+								st.cb.emit("lw	$ra, ($sp)");
+								st.cb.emit("addu	$sp, $sp, 4");
+								st.cb.emit("lw	$fp, ($sp)");
+								st.cb.emit("addu	$sp, $sp, 4");
+								st.reg_popall($1.reg_list);
+							}
+			| Call_begin RPAREN {
+						//first we check that the function is defined
+								info func_info("dummy", -1, -1);
+								if (st.find_func($1.name,func_info) < 0){
+									errorUndefFunc(yylineno, $1.name.c_str()); 
+									exit(1);
+								}
+                                vector<const char*> proto_names = vector<const char*>();
+                                for (vector<int>::iterator it1 = (func_info.params).begin();it1 != func_info.params.end();++it1){
+              						int_to_name_push(*it1, proto_names);
+	                            }
+
+								if (func_info.params.size()) { errorPrototypeMismatch(yylineno, $1.name.c_str() , proto_names);exit(1);}
+								$$.type = st.convert_type_func_to_var( func_info.type);
+
+								for (int i = 0; i < func_info.params.size(); ++i){
+									st.cb.emit("subu	$sp, $sp, 4");
+								}
+								st.cb.emit("# clear our argument !");
+								st.cb.emit("# Set fp above sp -- now in new function frame #");
+								st.cb.emit("move $fp, $sp");
+								st.cb.emit("jal	   __" + $1.name);
+								for (int i = 0; i < func_info.params.size(); ++i){
+									st.cb.emit("addu	$sp, $sp, 4");
+								}
+								st.cb.emit("# getting the frame pointer back and return address!");
+								st.cb.emit("lw	$ra, ($sp)");
+								st.cb.emit("addu	$sp, $sp, 4");
+								st.cb.emit("lw	$fp, ($sp)");
+								st.cb.emit("addu	$sp, $sp, 4");
+								st.reg_popall($1.reg_list);
+			}
+			;
+Call_begin	:	ID LPAREN	{	
+								$$.name = $1.name;
+								// the reason i put formal list here is not to add another attr !!
+								$$.reg_list = st.function_call();
+								info func_info("dummy", -1, -1);
+								if (st.find_func($1.name,func_info) < 0){
+									errorUndefFunc(yylineno, $1.name.c_str()); 
+									exit(1);
+								}
+								if ($1.name != "print"){
+									for (int i = 0; i < func_info.params.size(); ++i){
+										st.cb.emit("subu	$sp, $sp, 4");
+									}
+								}
+							}
+			;
+Mark_push		: /*epsilon*/ {
+						  }
+			;
+ExpList		: Exp {
+				$$.exp_list.insert($$.exp_list.begin() ,$1.type);
+				$$.prepare_call_list.push_back(vector<int>());
+				if ($1.type != TYPE_BOOL && $1.type != TYPE_STRING ){
+						$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + $1.reg + ", "));
+					//st.cb.emit("addu $sp, $sp ,4");
+				}else if($1.type != TYPE_STRING){
+					string true_label = st.cb.next();
+					string reg = st.reg_alloc();
+					//st.cb.emit("addu	$sp, $sp, 4");
+					st.cb.emit("li	" + reg + ", 1");
+					$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + reg + ", "));
+					int temp = st.cb.emit("j ");
+					string false_label = st.cb.next();
+					//st.cb.emit("addu	$sp, $sp, 4");
+					st.cb.emit("li	" + reg + ", 0");
+					$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + reg + ", "));
+					st.reg_free(reg);
+					string next_label = st.cb.next();
+					st.bpatch_one(temp, next_label);
+					st.cb.bpatch($1.true_list, true_label);
+					st.cb.bpatch($1.false_list, false_label);
+				}else{
+					//string case:
+					st.cb.emit("la	$a0, " + $1.name);
+				}
+			}
+			| Exp2 ExpList {
+									$$.exp_list = $2.exp_list;
+									$$.exp_list.insert($$.exp_list.begin() , $1.type);
+									$$.prepare_call_list = $2.prepare_call_list;
+									$$.prepare_call_list.insert($$.prepare_call_list.begin(), $1.prepare_call_list[0]);
+					       }
+			;
+Exp2		: Exp COMMA {
+									$$.type = $1.type;
+									$$.prepare_call_list.push_back(vector<int>());
+									if ($1.type != TYPE_BOOL){
+												$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + $1.reg + ", "));
+												//st.cb.emit("addu $sp, $sp ,4");
+									}else{
+										string true_label = st.cb.next();
+										string reg = st.reg_alloc();
+										//st.cb.emit("addu	$sp, $sp, 4");
+										st.cb.emit("li	" + reg + ", 1");
+										$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + reg + ", "));
+										int temp = st.cb.emit("j	");
+										string false_label = st.cb.next();
+										//st.cb.emit("addu	$sp, $sp, 4");
+										st.cb.emit("li	" + reg + ", 0");
+										$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + reg + ", "));
+										st.reg_free(reg);
+										string next_label = st.cb.next();
+										st.bpatch_one(temp, next_label);
+										st.cb.bpatch($1.true_list, true_label);
+										st.cb.bpatch($1.false_list, false_label);
+									}
+
+			}
+
+Type 		: INT {$$.type = TYPE_INT;}
+			| BYTE {$$.type = TYPE_BYTE;}
+			| BOOL {$$.type = TYPE_BOOL;}
+			;
+
+Exp	 		: LPAREN Exp RPAREN {
+									$$.is_true = $2.is_true;
+									$$.type = $2.type;
+									$$.value = $2.value;
+									$$.reg = $2.reg;
+									$$.true_list = $2.true_list;
+									$$.break_list = $2.break_list;
+									$$.false_list = $2.false_list;
+							}
+			| Exp BINOPMUL Exp {
+                         if ($1.is_true != UNDEFINED && $3.is_true != UNDEFINED && !($2.name == "/" && $3.value == 0)){
+                         	$$.value = st.calc_binop($1.value,  $2.name, $3.value);
+                           	$$.is_true = ($$.value != 0) ? T_VAL : F_VAL ;
+                         }else{
+                            $$.is_true = UNDEFINED;
+                         }
+                         if (!($1.type == TYPE_INT || $1.type == TYPE_BYTE) || !($3.type == TYPE_INT || $3.type == TYPE_BYTE)){
+                         	errorMismatch(yylineno);
+                         	exit(1);
+                         }
+						
+						$$.type =( $1.type == TYPE_INT || $3.type == TYPE_INT) ? TYPE_INT : TYPE_BYTE;
+						$$.reg = $1.reg;
+						if ($2.name == "/"){
+							string check_reg = st.reg_alloc();
+							st.cb.emit("li " + check_reg + ", 0 ");
+							int to_bp = st.cb.emit("bne " + check_reg + ", " + $3.reg + ", ");
+							st.cb.emit("la $a0, div_zero_label");
+							st.cb.emit("jal __print");
+							st.cb.emit("li $v0, 10");
+							st.cb.emit("syscall");
+							st.bpatch_one(to_bp, st.cb.next());
+							st.reg_free(check_reg);
+						}
+						st.emit_calc($1.reg, $2.name, $1.reg, $3.reg);
+						st.reg_free($3.reg);
+					}
+			| Exp BINOPADD Exp {
+                         if ($1.is_true != UNDEFINED && $3.is_true != UNDEFINED && !($2.name == "/" && $3.value == 0)){
+                         	$$.value = st.calc_binop($1.value,  $2.name, $3.value);
+                           	$$.is_true = ($$.value != 0) ? T_VAL : F_VAL ;
+                         }else{
+                            $$.is_true = UNDEFINED;
+                         }
+                         if (!($1.type == TYPE_INT || $1.type == TYPE_BYTE) || !($3.type == TYPE_INT || $3.type == TYPE_BYTE)){
+                         	errorMismatch(yylineno);
+                         	exit(1);
+                         }
+						
+						$$.type =( $1.type == TYPE_INT || $3.type == TYPE_INT) ? TYPE_INT : TYPE_BYTE;
+						$$.reg = $1.reg;
+						if ($2.name == "/"){
+							string check_reg = st.reg_alloc();
+							st.cb.emit("li " + check_reg + ", 0 ");
+							int to_bp = st.cb.emit("bne " + check_reg + ", " + $3.reg + ", ");
+							st.cb.emit("la $a0, div_zero_label");
+							st.cb.emit("jal __print");
+							st.cb.emit("li $v0, 10");
+							st.cb.emit("syscall");
+							st.bpatch_one(to_bp, st.cb.next());
+							st.reg_free(check_reg);
+						}
+						st.emit_calc($1.reg, $2.name, $1.reg, $3.reg);
+						st.reg_free($3.reg);
+					}
+			| Exp BINOPMIN Exp {
+                         if ($1.is_true != UNDEFINED && $3.is_true != UNDEFINED && !($2.name == "/" && $3.value == 0)){
+                         	$$.value = st.calc_binop($1.value,  $2.name, $3.value);
+                           	$$.is_true = ($$.value != 0) ? T_VAL : F_VAL ;
+                         }else{
+                            $$.is_true = UNDEFINED;
+                         }
+                         if (!($1.type == TYPE_INT || $1.type == TYPE_BYTE) || !($3.type == TYPE_INT || $3.type == TYPE_BYTE)){
+                         	errorMismatch(yylineno);
+                         	exit(1);
+                         }
+						
+						$$.type =( $1.type == TYPE_INT || $3.type == TYPE_INT) ? TYPE_INT : TYPE_BYTE;
+						$$.reg = $1.reg;
+						if ($2.name == "/"){
+							string check_reg = st.reg_alloc();
+							st.cb.emit("li " + check_reg + ", 0 ");
+							int to_bp = st.cb.emit("bne " + check_reg + ", " + $3.reg + ", ");
+							st.cb.emit("la $a0, div_zero_label");
+							st.cb.emit("jal __print");
+							st.cb.emit("li $v0, 10");
+							st.cb.emit("syscall");
+							st.bpatch_one(to_bp, st.cb.next());
+							st.reg_free(check_reg);
+						}
+						st.emit_calc($1.reg, $2.name, $1.reg, $3.reg);
+						st.reg_free($3.reg);
+					}
+			| Exp BINOPDIV Exp {
+                         if ($1.is_true != UNDEFINED && $3.is_true != UNDEFINED && !($2.name == "/" && $3.value == 0)){
+                         	$$.value = st.calc_binop($1.value,  $2.name, $3.value);
+                           	$$.is_true = ($$.value != 0) ? T_VAL : F_VAL ;
+                         }else{
+                            $$.is_true = UNDEFINED;
+                         }
+                         if (!($1.type == TYPE_INT || $1.type == TYPE_BYTE) || !($3.type == TYPE_INT || $3.type == TYPE_BYTE)){
+                         	errorMismatch(yylineno);
+                         	exit(1);
+                         }
+						
+						$$.type =( $1.type == TYPE_INT || $3.type == TYPE_INT) ? TYPE_INT : TYPE_BYTE;
+						$$.reg = $1.reg;
+						if ($2.name == "/"){
+							string check_reg = st.reg_alloc();
+							st.cb.emit("li " + check_reg + ", 0 ");
+							int to_bp = st.cb.emit("bne " + check_reg + ", " + $3.reg + ", ");
+							st.cb.emit("la $a0, div_zero_label");
+							st.cb.emit("jal __print");
+							st.cb.emit("li $v0, 10");
+							st.cb.emit("syscall");
+							st.bpatch_one(to_bp, st.cb.next());
+							st.reg_free(check_reg);
+						}
+						st.emit_calc($1.reg, $2.name, $1.reg, $3.reg);
+						st.reg_free($3.reg);
+					}
+
+			| ID {
+					int res = -1;
+					info new_info("",-1,-1);
+					res = st.find_func($1.name, new_info);
+					$$.is_true = UNDEFINED;
+					if (res >= 0) $$.type = res;
+					else if ((res = st.find_var($1.name, new_info)) >= 0) $$.type = res;
+					else {
+						errorUndef(yylineno, $1.name.c_str()); 
+						exit(1);
+					}
+                    if ($$.type == TYPE_INT || $$.type == TYPE_BYTE || $$.type == TYPE_FUNC_INT ||
+                    															 $$.type == TYPE_FUNC_BYTE){
+                    	$$.reg = st.reg_alloc();
+                    	std::stringstream label;
+						label << "lw	";
+						label << $$.reg;
+						label << ", ";
+						label << -(new_info.offset + 1) * 4;
+						label << "($fp)";
+                    	st.cb.emit(label.str());
+                    }else if ($$.type == TYPE_BOOL){
+                    	string reg = st.reg_alloc();
+                    	string reg1 = st.reg_alloc();
+						std::stringstream label;
+						label << "lw	";
+						label << reg;
+						label << ", ";
+						label << -(new_info.offset + 1) * 4;
+						label << "($fp)";
+						st.cb.emit(label.str());
+                    	st.cb.emit("li " + reg1 + ", 1");
+                        int s =st.cb.emit("beq " + reg + ", " + reg1 + ", ");
+                        $$.true_list = st.cb.makelist(s);
+						$$.false_list = st.cb.makelist(st.cb.emit("j "));
+						st.reg_free(reg);
+						st.reg_free(reg1);
+                    }
+			     }
+			| Call {
+						$$.type = $1.type;
+						$$.is_true = UNDEFINED;
+                    	if ($1.type == TYPE_INT || $1.type == TYPE_BYTE || $1.type == TYPE_FUNC_INT ||
+                    															 $1.type == TYPE_FUNC_BYTE){
+                    		$$.reg = st.reg_alloc();
+                    		st.cb.emit("move	" + $$.reg +", " + "$v0");
+                    	}else if($1.type ==  TYPE_BOOL){
+	                    	string reg = st.reg_alloc();
+	                    	st.cb.emit("li " + reg + ", 1");
+	                        int s =st.cb.emit("beq " + reg + ", $v0, ");
+	                        $$.true_list = st.cb.makelist(s);
+							$$.false_list = st.cb.makelist(st.cb.emit("j "));
+							st.reg_free(reg);
+                    	}
+				}
+			| NUM {
+						$$.type = TYPE_INT;
+						$$.name = $1.name; 
+						$$.value = $1.value;
+						$$.is_true = ($1.value != 0) ? T_VAL : F_VAL ;
+				 		$$.reg = st.reg_alloc();
+                    	std::stringstream label;
+						label << "li	";
+						label << $$.reg;
+						label << ", ";
+						label << $$.value;	
+                    	st.cb.emit(label.str());
+				 }
+			| NUM B {
+						if ($1.value > 255 || $1.value < 0){
+							errorByteTooLarge(yylineno, $1.name.c_str());
+							exit(1);
+						} 
+						$$.type = TYPE_BYTE;
+						$$.name = $1.name;
+						$$.value = $1.value;
+						$$.is_true = ($1.value != 0) ? T_VAL : F_VAL ;
+						$$.reg = st.reg_alloc();
+						std::stringstream label;
+						label << "li	";
+						label << $$.reg;
+						label << ", ";
+						label << $$.value;	
+		                st.cb.emit(label.str());
+			}
+			| STRING {	$$.type = TYPE_STRING;
+ 						static int string_count = 0;
+ 						std::stringstream label;
+						label << "string_label_";
+						label << string_count;
+						$$.name =label.str();
+						label << ":";
+						label << "	.asciiz ";
+						label << $1.name;
+						st.cb.emitData(label.str());
+						string_count ++;
+					 }
+			| TRUE {
+						$$.true_list = st.cb.makelist(st.cb.emit("j ")); // what should do about false list ? 
+						$$.type = TYPE_BOOL;
+						$$.is_true = T_VAL;
+				}
+			| FALSE {
+                        $$.false_list = st.cb.makelist(st.cb.emit("j ")); // what should do about false list ? 
+						$$.type = TYPE_BOOL;
+						$$.is_true = F_VAL;
+				}
+			| NOT Exp {
+										$$.true_list = $2.false_list;
+										$$.false_list = $2.true_list;
+										$$.next_list = $2.next_list;
+										$$.break_list = $2.break_list;
+										$$.reg_list = $2.reg_list;
+										$$.prepare_call_list =  $2.prepare_call_list;
+                                        $$.type = TYPE_BOOL;
+                                        if ($2.type != TYPE_BOOL) {
+                                        	errorMismatch(yylineno); 
+                                        	exit(1);
+                                        }
+                                        if ($2.is_true != UNDEFINED){
+                                        	$$.is_true =($2.is_true == F_VAL) ? T_VAL : F_VAL ;
+                                        }else{
+                                        	$$.is_true = UNDEFINED;
+                                        }     
+                                  }  
+			| Exp AND MQUAD Exp {
+										st.cb.bpatch($1.true_list, $3.quad);
+										$$.false_list = st.cb.merge($1.false_list, $4.false_list);
+                                        $$.true_list = $4.true_list;
+                                        $$.type = TYPE_BOOL;
+                                        if ($1.type != TYPE_BOOL ||  $4.type != TYPE_BOOL) {
+                                        	errorMismatch(yylineno); 
+                                        	exit(1);
+                                        }
+                                         if ($1.is_true != UNDEFINED && $4.is_true != UNDEFINED){
+                                        	$$.is_true =($1.is_true == T_VAL && $4.is_true == T_VAL) ? T_VAL : F_VAL ;
+                                        }else{
+                                        	$$.is_true = UNDEFINED;
+                                        }
+				     }
+			| Exp OR MQUAD Exp {
+										st.cb.bpatch($1.false_list, $3.quad);
+										$$.true_list = st.cb.merge($1.true_list, $4.true_list);
+                                        $$.false_list = $4.false_list;
+
+                                        $$.type = TYPE_BOOL;
+                                        if ($1.type != TYPE_BOOL ||  $4.type != TYPE_BOOL) {
+                                        	errorMismatch(yylineno); 
+                                        	exit(1);
+                                        }
+                                        if ($1.is_true != UNDEFINED && $4.is_true != UNDEFINED){
+                                        	$$.is_true =  ($1.is_true == T_VAL || $4.is_true == T_VAL) ? T_VAL : F_VAL ;
+                                        }else{
+                                        	$$.is_true = UNDEFINED;
+                                        }
+                                     }
+			| Exp RELOP Exp {
+								$$.type = TYPE_BOOL;
+								if (!($1.type == TYPE_INT || $1.type == TYPE_BYTE) ||
+																	 !($3.type == TYPE_INT || $3.type == TYPE_BYTE)){
+									errorMismatch(yylineno); 
+									exit(1);
+								}
+                        		if ($1.is_true != UNDEFINED && $3.is_true != UNDEFINED){
+                        			$$.is_true = st.check_relop($1.value,  $2.name, $3.value ) ? T_VAL : F_VAL;
+                        		}else{
+                        			$$.is_true = UNDEFINED;
+                        		}
+                        		int s =st.cb.emit(st.relop_to_string($2.name) + ", " + $1.reg + ", " + $3.reg + ", ");
+                        		$$.true_list = st.cb.makelist(s);
+								$$.false_list = st.cb.makelist(st.cb.emit("j "));
+							}
+			;	
+
+			;
+MQUAD		:/*epsilon*/
+				{
+					$$.quad = st.cb.next(); 
+				}
+PushMark    :/*epsilon*/
+                {
+					st.push_table();
+                }
+             ;
+%%
+
+int main()
+{
+	//yydebug = 1;
+	yyparse();
+
+}
+
+int yyerror(char const * message)
+{
+	errorSyn(yylineno);
+	exit(1);
+}
+
+void int_to_name_push(int i, vector<const char*>& proto_names){
+	if (i == TYPE_BYTE) proto_names.push_back("BYTE");
+	if (i == TYPE_INT)  proto_names.push_back("INT");
+	if (i == TYPE_BOOL) proto_names.push_back("BOOL");
+	if (i == TYPE_STRING)  proto_names.push_back("STRING");
+ 
+}
