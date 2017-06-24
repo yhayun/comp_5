@@ -560,7 +560,7 @@ public:
 %token TRUE
 %token FALSE
 %token RETURN
-%token IF
+%right IF
 %token NUM
 %token WHILE
 %token SWITCH
@@ -579,9 +579,9 @@ public:
 %token whitespace
 %token comment
 %right then ELSE
-	
+
+%left OR	
 %left AND
-%right OR
 %left RELOP
 %right BINOP	
 %left NOT
