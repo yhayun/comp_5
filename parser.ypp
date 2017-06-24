@@ -579,13 +579,14 @@ public:
 %token comment
 %right then ELSE
 	
-%left AND
 %left OR
+%left AND
 %left RELOP
+
 %right BINOPADD
 %right BINOPMIN
-%right BINOPMUL
 %right BINOPDIV
+%right BINOPMUL
 
 
 %left NOT
