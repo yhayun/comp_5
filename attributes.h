@@ -29,6 +29,7 @@ typedef struct
 	vector<int> false_list;
 	vector<int> next_list;
 	vector<int> reg_list;
+	vector<vector<int> > prepare_call_list;
 } STYPE;
 
 #define YYSTYPE STYPE	// Tell Bison to use STYPE as the stack type

@@ -1021,10 +1021,16 @@ Call 			: Call_begin Mark_push ExpList RPAREN {
 									exit(1);
 								}
 								$$.type = st.convert_type_func_to_var( func_info.type);
-
+								for (int i = 0; i < $3.prepare_call_list.size(); ++i){
+									    std::stringstream label;
+									    label << i*4;
+									    label << "($sp)";
+									    for (int j = 0; j < $3.prepare_call_list[i].size() ; ++j)
+									    	st.bpatch_one($3.prepare_call_list[i][j], label.str());
+								}/*
 								for (int i = 0; i < func_info.params.size(); ++i){
 									st.cb.emit("subu	$sp, $sp, 4");
-								}
+								}*/
 								st.cb.emit("# clear our argument !");
 								st.cb.emit("# Set fp above sp -- now in new function frame #");
 								st.cb.emit("move $fp, $sp");
@@ -1093,20 +1099,21 @@ Mark_push		: /*epsilon*/ {
 			;
 ExpList		: Exp {
 				$$.exp_list.insert($$.exp_list.begin() ,$1.type);
+				$$.prepare_call_list.push_back(vector<int>());
 				if ($1.type != TYPE_BOOL && $1.type != TYPE_STRING ){
-					st.cb.emit("sw	" + $1.reg + ", ($sp)");
-					st.cb.emit("addu $sp, $sp ,4");
+						$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + $1.reg + ", "));
+					//st.cb.emit("addu $sp, $sp ,4");
 				}else if($1.type != TYPE_STRING){
 					string true_label = st.cb.next();
 					string reg = st.reg_alloc();
-					st.cb.emit("addu	$sp, $sp, 4");
+					//st.cb.emit("addu	$sp, $sp, 4");
 					st.cb.emit("li	" + reg + ", 1");
-					st.cb.emit("sw	" + reg + ", ($sp)");
+					$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + reg + ", "));
 					int temp = st.cb.emit("j ");
 					string false_label = st.cb.next();
-					st.cb.emit("addu	$sp, $sp, 4");
+					//st.cb.emit("addu	$sp, $sp, 4");
 					st.cb.emit("li	" + reg + ", 0");
-					st.cb.emit("sw	" + reg + ", ($sp)");
+					$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + reg + ", "));
 					st.reg_free(reg);
 					string next_label = st.cb.next();
 					st.bpatch_one(temp, next_label);
@@ -1120,24 +1127,27 @@ ExpList		: Exp {
 			| Exp2 ExpList {
 									$$.exp_list = $2.exp_list;
 									$$.exp_list.insert($$.exp_list.begin() , $1.type);
+									$$.prepare_call_list = $2.prepare_call_list;
+									$$.prepare_call_list.insert($$.prepare_call_list.begin(), $1.prepare_call_list[0]);
 					       }
 			;
 Exp2		: Exp COMMA {
 									$$.type = $1.type;
+									$$.prepare_call_list.push_back(vector<int>());
 									if ($1.type != TYPE_BOOL){
-												st.cb.emit("sw	" + $1.reg + ", ($sp)");
-												st.cb.emit("addu $sp, $sp ,4");
+												$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + $1.reg + ", "));
+												//st.cb.emit("addu $sp, $sp ,4");
 									}else{
 										string true_label = st.cb.next();
 										string reg = st.reg_alloc();
-										st.cb.emit("addu	$sp, $sp, 4");
+										//st.cb.emit("addu	$sp, $sp, 4");
 										st.cb.emit("li	" + reg + ", 1");
-										st.cb.emit("sw	" + reg + ", ($sp)");
+										$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + reg + ", "));
 										int temp = st.cb.emit("j	");
 										string false_label = st.cb.next();
-										st.cb.emit("addu	$sp, $sp, 4");
+										//st.cb.emit("addu	$sp, $sp, 4");
 										st.cb.emit("li	" + reg + ", 0");
-										st.cb.emit("sw	" + reg + ", ($sp)");
+										$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + reg + ", "));
 										st.reg_free(reg);
 										string next_label = st.cb.next();
 										st.bpatch_one(temp, next_label);
