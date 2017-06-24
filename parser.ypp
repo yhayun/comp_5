@@ -583,9 +583,8 @@ public:
 %left AND
 %right OR
 %left RELOP
-%right BINOP
-%left NOT	
-
+%right BINOP	
+%left NOT
 %%
 
 
