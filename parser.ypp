@@ -580,7 +580,7 @@ public:
 %token comment
 %right then ELSE
 	
-%right AND
+%left AND
 %right OR
 %right RELOP
 %right BINOP
