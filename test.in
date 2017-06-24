@@ -1,7 +1,7 @@
-void f( int const){ 
-   int y =5;
+void f(int x){ 
+   int y =5;return;
 }
 
 void main(){
- f(5);
+ f(4);
 }

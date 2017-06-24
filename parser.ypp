@@ -815,7 +815,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 						exit(1);
 					}
 					st.cb.emit("# here we can make sure we CLEAR the stack");
-					st.cb.emit("move $fp, $sp");
+					st.cb.emit("move $sp, $fp");
 					st.cb.emit("jr	$ra");
 				}
 			| RETURN Exp SC {
@@ -840,6 +840,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 						st.cb.bpatch($2.false_list, st.cb.next());
 						st.cb.emit("li $v0, 0");
 						st.bpatch_one(tmp, st.cb.next());
+						st.cb.emit("move $sp, $fp");
 						st.cb.emit("jr	$ra");
 					}else{
 						st.cb.emit("move $v0, " + $2.reg);
@@ -1038,7 +1039,7 @@ Call 			: Call_begin Mark_push ExpList RPAREN {
 								st.cb.emit("addu	$sp, $sp, 4");
 								st.reg_popall($1.reg_list);
 							}
-			| ID LPAREN RPAREN {
+			| Call_begin RPAREN {
 						//first we check that the function is defined
 								info func_info("dummy", -1, -1);
 								if (st.find_func($1.name,func_info) < 0){
@@ -1234,6 +1235,13 @@ Exp	 		: LPAREN Exp RPAREN {
                     															 $1.type == TYPE_FUNC_BYTE){
                     		$$.reg = st.reg_alloc();
                     		st.cb.emit("move	" + $$.reg +", " + "$v0");
+                    	}else if($1.type ==  TYPE_BOOL){
+	                    	string reg = st.reg_alloc();
+	                    	st.cb.emit("li " + reg + ", 1");
+	                        int s =st.cb.emit("beq " + reg + ", $v0, ");
+	                        $$.true_list = st.cb.makelist(s);
+							$$.false_list = st.cb.makelist(st.cb.emit("j "));
+							st.reg_free(reg);
                     	}
 				}
 			| NUM {
