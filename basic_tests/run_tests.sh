@@ -39,6 +39,7 @@ for i in `ls | grep "in$"`;do
         diff $j.res $j.out
     fi
  done
+
  rm *.res
  rm *.s
 echo "Testing done!"
