@@ -998,9 +998,9 @@ CaseStat	: CASE NUM COLON QUAD_CASE Statement MARK_BRK BREAK SC {
 			| CASE NUM B COLON QUAD_CASE Statement MARK_BRK BREAK SC {
 			                                                          	st.manage_insert( $6 , true);
 			                                                        	//both lists will get same backpatch to end of switch.
-																		$$.true_list = st.cb.merge($5.true_list, $4.break_list);
-																		$$.break_list = $7.break_list;
+																		$$.true_list = $5.true_list;
 																		$$.next_list = $6.next_list;
+																		$$.break_list = st.cb.merge($7.break_list, $6.break_list);
 																		//this quad is chainlist of case lables, need to bp in caselist.
 																		$$.quad = $5.quad;
 																		std::stringstream num_val;
