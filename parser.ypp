@@ -323,6 +323,7 @@ public:
 			push_table();
 			add_symbol(new_info);
 			pop_table();
+			cb.emit("addu $sp, $sp, 4 # pop single param new scope");
 			return;
 		}
 		//push into current table:
