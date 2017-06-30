@@ -456,7 +456,7 @@ public:
 				reg << reg_num;
 				return reg.str();
 			}
-		cout << "unable to alloc another reg !" << endl;
+		cout << "unable to alloc another reg ! " << yylineno << endl;
 		exit(1);
 		return "";
 	}
@@ -753,6 +753,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 					if ($1.type != TYPE_BOOL){
 						st.cb.emit("# inserting var = " + $$.name);
 						st.reg_push($4.reg);
+						st.reg_free($4.reg);
 					}else{
 						string true_label = st.cb.next();
 						string reg = st.reg_alloc();
@@ -798,6 +799,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 							ass << -((st.get_var_offset($1.name) + 1)  * 4);
 							ass << "($fp)";
 							st.cb.emit("sw	" + $3.reg + ", " + ass.str());
+							st.reg_free($3.reg);
 						}else{ // DO BOOLBOOL
 							string true_label = st.cb.next();
 							string reg = st.reg_alloc();
@@ -857,6 +859,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 					}else{
 						st.cb.emit("move $v0, " + $2.reg);
 						st.cb.emit("jr	$ra");
+						st.reg_free($2.reg);
 					}
 				}
 			| IFPART1 MQUAD Statement ELSE MARK_BRK MQUAD Statement {
@@ -935,6 +938,7 @@ IFPART1		: IF LPAREN Exp RPAREN{
 										$$.true_list = $3.true_list;
 										$$.false_list = $3.false_list;
 										$$.break_list = $3.break_list;
+
 
 								}
 			;
@@ -1124,6 +1128,7 @@ ExpList		: Exp {
 				$$.prepare_call_list.push_back(vector<int>());
 				if ($1.type != TYPE_BOOL && $1.type != TYPE_STRING ){
 						$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + $1.reg + ", "));
+						st.reg_free($1.reg);
 					//st.cb.emit("addu $sp, $sp ,4");
 				}else if($1.type != TYPE_STRING){
 					string true_label = st.cb.next();
@@ -1158,6 +1163,7 @@ Exp2		: Exp COMMA {
 									$$.prepare_call_list.push_back(vector<int>());
 									if ($1.type != TYPE_BOOL){
 												$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + $1.reg + ", "));
+												st.reg_free($1.reg);
 												//st.cb.emit("addu $sp, $sp ,4");
 									}else{
 										string true_label = st.cb.next();
@@ -1477,6 +1483,8 @@ Exp	 		: LPAREN Exp RPAREN {
                         		int s =st.cb.emit(st.relop_to_string($2.name) + ", " + $1.reg + ", " + $3.reg + ", ");
                         		$$.true_list = st.cb.makelist(s);
 								$$.false_list = st.cb.makelist(st.cb.emit("j "));
+								st.reg_free($1.reg);
+								st.reg_free($3.reg);
 							}
 			;	
 
