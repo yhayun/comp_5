@@ -803,14 +803,18 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 						}else{ // DO BOOLBOOL
 							string true_label = st.cb.next();
 							string reg = st.reg_alloc();
+							std::stringstream ass;
+							ass << -((st.get_var_offset($1.name) + 1)  * 4);
+							ass << "($fp)";
+
 							st.cb.emit("subu	$sp, $sp, 4");
 							st.cb.emit("li	" + reg + ", 1");
-							st.cb.emit("sw	" + reg + ", ($sp)");
+							st.cb.emit("sw	" + reg + ", " + ass.str());
 							int temp = st.cb.emit("j ");
 							string false_label = st.cb.next();
 							st.cb.emit("subu	$sp, $sp, 4");
 							st.cb.emit("li	" + reg + ", 0");
-							st.cb.emit("sw	" + reg + ", ($sp)");
+							st.cb.emit("sw	" + reg + ", " + ass.str());
 							st.reg_free(reg);
 							string next_label = st.cb.next();
 							st.bpatch_one(temp, next_label);
