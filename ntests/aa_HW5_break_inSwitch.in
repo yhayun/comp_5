@@ -25,7 +25,7 @@ void main(){
 					print("inner switch - in case 4\n");
 					print("break second loop\n");
 					break;
-				}		
+				}break;		
 			};
 		}
 			
