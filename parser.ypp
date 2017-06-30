@@ -616,8 +616,8 @@ Funcs 		:	FuncDecl Funcs {
 
 FuncDecl     : FuncDecl1 LBRACE Statements RBRACE{	
 													    if (!$3.have_sure_exit && st.func_return != TYPE_FUNC_VOID){
-													     	errorNotAllPaths(yylineno, $$.name.c_str()); 
-													     	exit(1);
+													     	//errorNotAllPaths(yylineno, $$.name.c_str()); 
+													     	//exit(1);
 													    }
 													    //Quad for end of function:
 													    $$.quad = st.cb.next(); 
