@@ -17,8 +17,8 @@ jr	$ra
 __f:
 lw	$8, 0($fp)
 lw	$9, 4($fp)
-addu	$8, $8, $9
-lw	$9, 8($fp)
+lw	$10, 8($fp)
+addu	$9, $9, $10
 addu	$8, $8, $9
 # here we can make sure we CLEAR the stack
 beq $fp, $sp, label_20
@@ -26,20 +26,22 @@ addu	$sp, $sp, 4
 label_20:
 move $v0, $8
 jr	$ra
+label_23:
 subu $sp, $fp, 0 # fix sp
 .end __f
 __g:
 lw	$9, 0($fp)
 lw	$10, 4($fp)
-addu	$9, $9, $10
-li	$10, 1
+li	$11, 1
+addu	$10, $10, $11
 addu	$9, $9, $10
 # here we can make sure we CLEAR the stack
-beq $fp, $sp, label_34
+beq $fp, $sp, label_35
 addu	$sp, $sp, 4
-label_34:
+label_35:
 move $v0, $9
 jr	$ra
+label_38:
 subu $sp, $fp, 0 # fix sp
 .end __g
 .globl main
@@ -89,13 +91,9 @@ sw	$ra, ($sp)
 subu	$sp, $sp, 4
 subu	$sp, $sp, 4
 li	$8, 2
-sw	$8, ($sp)
-addu $sp, $sp ,4
+sw	$8, 0($sp)
 li	$9, 2
-sw	$9, ($sp)
-addu $sp, $sp ,4
-subu	$sp, $sp, 4
-subu	$sp, $sp, 4
+sw	$9, 4($sp)
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
@@ -114,8 +112,7 @@ addu	$sp, $sp, 4
 #Pop all regs : end.
 #**************************
 move	$10, $v0
-sw	$10, ($sp)
-addu $sp, $sp ,4
+sw	$10, 0($sp)
 # Function Call #
 #Push all regs : begining.
 #**************************
@@ -136,13 +133,9 @@ sw	$ra, ($sp)
 subu	$sp, $sp, 4
 subu	$sp, $sp, 4
 li	$8, 3
-sw	$8, ($sp)
-addu $sp, $sp ,4
+sw	$8, 0($sp)
 li	$9, 4
-sw	$9, ($sp)
-addu $sp, $sp ,4
-subu	$sp, $sp, 4
-subu	$sp, $sp, 4
+sw	$9, 4($sp)
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
@@ -167,8 +160,7 @@ addu	$sp, $sp, 4
 #Pop all regs : end.
 #**************************
 move	$11, $v0
-sw	$11, ($sp)
-addu $sp, $sp ,4
+sw	$11, 4($sp)
 # Function Call #
 #Push all regs : begining.
 #**************************
@@ -191,13 +183,9 @@ sw	$ra, ($sp)
 subu	$sp, $sp, 4
 subu	$sp, $sp, 4
 li	$8, 1
-sw	$8, ($sp)
-addu $sp, $sp ,4
+sw	$8, 0($sp)
 li	$9, 1
-sw	$9, ($sp)
-addu $sp, $sp ,4
-subu	$sp, $sp, 4
-subu	$sp, $sp, 4
+sw	$9, 4($sp)
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
@@ -224,11 +212,7 @@ addu	$sp, $sp, 4
 #Pop all regs : end.
 #**************************
 move	$12, $v0
-sw	$12, ($sp)
-addu $sp, $sp ,4
-subu	$sp, $sp, 4
-subu	$sp, $sp, 4
-subu	$sp, $sp, 4
+sw	$12, 8($sp)
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
@@ -248,9 +232,7 @@ addu	$sp, $sp, 4
 #Pop all regs : end.
 #**************************
 move	$13, $v0
-sw	$13, ($sp)
-addu $sp, $sp ,4
-subu	$sp, $sp, 4
+sw	$13, 0($sp)
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
@@ -295,12 +277,10 @@ sw	$fp, ($sp)
 subu $sp, $sp ,4
 sw	$ra, ($sp)
 la	$a0, string_label_0
-subu	$sp, $sp, 4
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
 jal	   __print
-addu	$sp, $sp, 4
 # getting the frame pointer back and return address!
 lw	$ra, ($sp)
 addu	$sp, $sp, 4
@@ -376,13 +356,9 @@ sw	$ra, ($sp)
 subu	$sp, $sp, 4
 subu	$sp, $sp, 4
 li	$8, 4
-sw	$8, ($sp)
-addu $sp, $sp ,4
+sw	$8, 0($sp)
 li	$9, 2
-sw	$9, ($sp)
-addu $sp, $sp ,4
-subu	$sp, $sp, 4
-subu	$sp, $sp, 4
+sw	$9, 4($sp)
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
@@ -401,8 +377,7 @@ addu	$sp, $sp, 4
 #Pop all regs : end.
 #**************************
 move	$10, $v0
-sw	$10, ($sp)
-addu $sp, $sp ,4
+sw	$10, 0($sp)
 # Function Call #
 #Push all regs : begining.
 #**************************
@@ -423,13 +398,9 @@ sw	$ra, ($sp)
 subu	$sp, $sp, 4
 subu	$sp, $sp, 4
 li	$8, 4
-sw	$8, ($sp)
-addu $sp, $sp ,4
+sw	$8, 0($sp)
 li	$9, 4
-sw	$9, ($sp)
-addu $sp, $sp ,4
-subu	$sp, $sp, 4
-subu	$sp, $sp, 4
+sw	$9, 4($sp)
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
@@ -454,8 +425,7 @@ addu	$sp, $sp, 4
 #Pop all regs : end.
 #**************************
 move	$11, $v0
-sw	$11, ($sp)
-addu $sp, $sp ,4
+sw	$11, 4($sp)
 # Function Call #
 #Push all regs : begining.
 #**************************
@@ -478,13 +448,9 @@ sw	$ra, ($sp)
 subu	$sp, $sp, 4
 subu	$sp, $sp, 4
 li	$8, 5
-sw	$8, ($sp)
-addu $sp, $sp ,4
+sw	$8, 0($sp)
 li	$9, 1
-sw	$9, ($sp)
-addu $sp, $sp ,4
-subu	$sp, $sp, 4
-subu	$sp, $sp, 4
+sw	$9, 4($sp)
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
@@ -511,11 +477,7 @@ addu	$sp, $sp, 4
 #Pop all regs : end.
 #**************************
 move	$12, $v0
-sw	$12, ($sp)
-addu $sp, $sp ,4
-subu	$sp, $sp, 4
-subu	$sp, $sp, 4
-subu	$sp, $sp, 4
+sw	$12, 8($sp)
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
@@ -535,9 +497,7 @@ addu	$sp, $sp, 4
 #Pop all regs : end.
 #**************************
 move	$13, $v0
-sw	$13, ($sp)
-addu $sp, $sp ,4
-subu	$sp, $sp, 4
+sw	$13, 0($sp)
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
@@ -566,10 +526,7 @@ addu	$sp, $sp, 4
 
 #Pop all regs : end.
 #**************************
-# here we can make sure we CLEAR the stack
-move	$fp, $sp
-jr	$ra
-subu $sp, $fp, 0 # fix sp
+label_523:
 li  $v0,  10 # call to end prog
 syscall
 .end main

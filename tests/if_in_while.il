@@ -81,12 +81,10 @@ sw	$fp, ($sp)
 subu $sp, $sp ,4
 sw	$ra, ($sp)
 la	$a0, string_label_0
-subu	$sp, $sp, 4
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
 jal	   __print
-addu	$sp, $sp, 4
 # getting the frame pointer back and return address!
 lw	$ra, ($sp)
 addu	$sp, $sp, 4
@@ -143,9 +141,7 @@ subu $sp, $sp ,4
 sw	$ra, ($sp)
 subu	$sp, $sp, 4
 lw	$8, 0($fp)
-sw	$8, ($sp)
-addu $sp, $sp ,4
-subu	$sp, $sp, 4
+sw	$8, 0($sp)
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
@@ -206,12 +202,10 @@ sw	$fp, ($sp)
 subu $sp, $sp ,4
 sw	$ra, ($sp)
 la	$a0, string_label_1
-subu	$sp, $sp, 4
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
 jal	   __print
-addu	$sp, $sp, 4
 # getting the frame pointer back and return address!
 lw	$ra, ($sp)
 addu	$sp, $sp, 4
@@ -239,6 +233,7 @@ addu	$sp, $sp, 4
 
 #Pop all regs : end.
 #**************************
+label_229:
 # here we can make sure we CLEAR the stack
 move	$fp, $sp
 jr	$ra
@@ -276,9 +271,7 @@ subu $sp, $sp ,4
 sw	$ra, ($sp)
 subu	$sp, $sp, 4
 li	$8, 0
-sw	$8, ($sp)
-addu $sp, $sp ,4
-subu	$sp, $sp, 4
+sw	$8, 0($sp)
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
@@ -340,9 +333,7 @@ subu $sp, $sp ,4
 sw	$ra, ($sp)
 subu	$sp, $sp, 4
 li	$8, 6
-sw	$8, ($sp)
-addu $sp, $sp ,4
-subu	$sp, $sp, 4
+sw	$8, 0($sp)
 # clear our argument !
 # Set fp above sp -- now in new function frame #
 move $fp, $sp
@@ -375,10 +366,7 @@ addu	$sp, $sp, 4
 
 #Pop all regs : end.
 #**************************
-# here we can make sure we CLEAR the stack
-move	$fp, $sp
-jr	$ra
-subu $sp, $fp, 0 # fix sp
+label_362:
 li  $v0,  10 # call to end prog
 syscall
 .end main

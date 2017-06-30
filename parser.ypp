@@ -456,7 +456,7 @@ public:
 				reg << reg_num;
 				return reg.str();
 			}
-		cout << "unable to alloc another reg !" << endl;
+		cout << "unable to alloc another reg ! " << yylineno << endl;
 		exit(1);
 		return "";
 	}
@@ -753,6 +753,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 					if ($1.type != TYPE_BOOL){
 						st.cb.emit("# inserting var = " + $$.name);
 						st.reg_push($4.reg);
+						st.reg_free($4.reg);
 					}else{
 						string true_label = st.cb.next();
 						string reg = st.reg_alloc();
@@ -798,6 +799,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 							ass << -((st.get_var_offset($1.name) + 1)  * 4);
 							ass << "($fp)";
 							st.cb.emit("sw	" + $3.reg + ", " + ass.str());
+							st.reg_free($3.reg);
 						}else{ // DO BOOLBOOL
 							string true_label = st.cb.next();
 							string reg = st.reg_alloc();
