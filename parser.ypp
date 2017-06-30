@@ -915,7 +915,9 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 			| SWITCH1part LBRACE CaseList RBRACE SC {
 														$$.insert = false;
 														$$.have_sure_exit = false; 
-														$$.next_list = $3.next_list;
+														//$$.next_list = $3.next_list;
+														string endswitch = st.cb.next();
+														st.cb.bpatch($3.next_list, endswitch);														
 														$$.break_list = $3.break_list;
 														st.cb.bpatch($3.true_list, $1.reg + ", ");
 														for(int i=0; i < $3.true_list.size() - 1; i ++){
