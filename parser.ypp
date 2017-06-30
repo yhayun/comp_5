@@ -898,7 +898,6 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 												string label = st.cb.next();
 												st.cb.bpatch($1.false_list, label);
 												st.cb.bpatch($3.break_list, label);
-												st.cb.bpatch($1.false_list , $2.reg);
 												st.pop_params();
 												st.cb.emit("# End While Loop");
 												$$.next_list = $3.next_list;
