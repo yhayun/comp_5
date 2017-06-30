@@ -859,6 +859,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 					}else{
 						st.cb.emit("move $v0, " + $2.reg);
 						st.cb.emit("jr	$ra");
+						st.reg_free($2.reg);
 					}
 				}
 			| IFPART1 MQUAD Statement ELSE MARK_BRK MQUAD Statement {
@@ -937,6 +938,7 @@ IFPART1		: IF LPAREN Exp RPAREN{
 										$$.true_list = $3.true_list;
 										$$.false_list = $3.false_list;
 										$$.break_list = $3.break_list;
+
 
 								}
 			;
@@ -1126,6 +1128,7 @@ ExpList		: Exp {
 				$$.prepare_call_list.push_back(vector<int>());
 				if ($1.type != TYPE_BOOL && $1.type != TYPE_STRING ){
 						$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + $1.reg + ", "));
+						st.reg_free($1.reg);
 					//st.cb.emit("addu $sp, $sp ,4");
 				}else if($1.type != TYPE_STRING){
 					string true_label = st.cb.next();
@@ -1160,6 +1163,7 @@ Exp2		: Exp COMMA {
 									$$.prepare_call_list.push_back(vector<int>());
 									if ($1.type != TYPE_BOOL){
 												$$.prepare_call_list[0].push_back(st.cb.emit("sw	" + $1.reg + ", "));
+												st.reg_free($1.reg);
 												//st.cb.emit("addu $sp, $sp ,4");
 									}else{
 										string true_label = st.cb.next();
@@ -1479,6 +1483,8 @@ Exp	 		: LPAREN Exp RPAREN {
                         		int s =st.cb.emit(st.relop_to_string($2.name) + ", " + $1.reg + ", " + $3.reg + ", ");
                         		$$.true_list = st.cb.makelist(s);
 								$$.false_list = st.cb.makelist(st.cb.emit("j "));
+								st.reg_free($1.reg);
+								st.reg_free($3.reg);
 							}
 			;	
 
