@@ -916,6 +916,7 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 														$$.insert = false;
 														$$.have_sure_exit = false; 
 														$$.next_list = $3.next_list;
+														$$.break_list = $3.break_list;
 														st.cb.bpatch($3.true_list, $1.reg + ", ");
 														for(int i=0; i < $3.true_list.size() - 1; i ++){
 															std::stringstream label;
@@ -923,9 +924,9 @@ Statement	 	: LBRACE PushMark Statements RBRACE {
 															label << $3.true_list[i + 1] - 2;
 															st.bpatch_one($3.true_list[i], label.str());
 														}
-														vector<int> v = vector<int>();
-														v.push_back($3.true_list.back());
-														st.cb.bpatch(st.cb.merge($3.break_list, v), st.cb.next());
+														vector<int> last_case_in_Caselist = vector<int>();
+														last_case_in_Caselist.push_back($3.true_list.back());
+														st.cb.bpatch(last_case_in_Caselist, st.cb.next());
 														st.reg_free($1.reg);
 												    }
 
@@ -991,8 +992,8 @@ CaseList	: CaseStat CaseList {
 CaseStat	: CASE NUM COLON QUAD_CASE Statement MARK_BRK BREAK SC {
 		                                       	 		  		  		st.manage_insert( $5 , true); 
 																		$$.true_list = $4.true_list;
-																		$$.next_list = $5.next_list;
-																		$$.break_list = st.cb.merge($6.break_list, $5.break_list);
+																		$$.next_list = st.cb.merge( $5.next_list, $6.break_list);
+																		$$.break_list = $5.break_list;
 																		//this quad is chainlist of case lables, need to bp in caselist.
 																		$$.quad = $4.quad;
 																		std::stringstream num_val;
@@ -1007,8 +1008,8 @@ CaseStat	: CASE NUM COLON QUAD_CASE Statement MARK_BRK BREAK SC {
 			                                                          	st.manage_insert( $6 , true);
 			                                                        	//both lists will get same backpatch to end of switch.
 																		$$.true_list = $5.true_list;
-																		$$.next_list = $6.next_list;
-																		$$.break_list = st.cb.merge($7.break_list, $6.break_list);
+																		$$.next_list = st.cb.merge( $6.next_list, $7.break_list);
+																		$$.break_list = $6.break_list;
 																		//this quad is chainlist of case lables, need to bp in caselist.
 																		$$.quad = $5.quad;
 																		std::stringstream num_val;
