@@ -30,6 +30,7 @@ typedef struct
 	vector<int> next_list;
 	vector<int> break_list;
 	vector<int> reg_list;
+	vector<int> switch_list;
 	vector<vector<int> > prepare_call_list;
 } STYPE;
 
