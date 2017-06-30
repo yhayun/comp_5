@@ -1495,8 +1495,8 @@ Exp	 		: LPAREN Exp RPAREN {
                         		int s =st.cb.emit(st.relop_to_string($2.name) + ", " + $1.reg + ", " + $3.reg + ", ");
                         		$$.true_list = st.cb.makelist(s);
 								$$.false_list = st.cb.makelist(st.cb.emit("j "));
-								//st.reg_free($1.reg);
-								//st.reg_free($3.reg);
+								st.reg_free($1.reg);
+								st.reg_free($3.reg);
 							}
 			;	
 
