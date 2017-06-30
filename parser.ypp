@@ -929,8 +929,8 @@ IFPART1		: IF LPAREN Exp RPAREN{
 											exit(1);
 										}
 										if ($3.is_true == F_VAL){
-											errorDeadCode(yylineno); 
-											exit(1);
+											//errorDeadCode(yylineno); 
+											//exit(1);
 										}
 										$$.true_list = $3.true_list;
 										$$.false_list = $3.false_list;
@@ -944,8 +944,8 @@ WHILEPART1	:	WHILE Mark2 LPAREN Exp RPAREN{
 													exit(1);
 												}
 												if ($4.is_true == F_VAL){
-													errorDeadCode(yylineno);
-													exit(1);
+													//errorDeadCode(yylineno);
+													//exit(1);
 												}
 												$$.true_list = $4.true_list;
 												$$.false_list = $4.false_list;	
